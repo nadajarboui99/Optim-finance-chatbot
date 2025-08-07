@@ -11,7 +11,8 @@ import faiss
 class SearchEngine:
     def __init__(self):
         self.embedding_manager = EmbeddingManager()
-        self.model = SentenceTransformer(Config.EMBEDDING_MODEL)
+        self.model = SentenceTransformer(
+         Config.EMBEDDING_MODEL )
         
         # Patterns pour classification d'intention
         self.intent_patterns = {
@@ -112,8 +113,10 @@ class SearchEngine:
             top_k = Config.TOP_K_RESULTS
         
         # Recherches séparées
-        semantic_results = self.search_semantic(query, top_k * 2)
-        keyword_results = self.search_by_keywords(query, top_k * 2)
+       # In hybrid_search()
+       # Reduce the multiplier (2x is too aggressive)
+        semantic_results = self.search_semantic(query, top_k + 3)  # Just slightly more
+        keyword_results = self.search_by_keywords(query, top_k + 3)
         
         # Combiner les résultats
         combined_scores = {}
