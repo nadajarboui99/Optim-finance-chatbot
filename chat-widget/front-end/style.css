@@ -5,7 +5,7 @@
     box-sizing: border-box;
 }
 
-body {
+/*body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #a24b4b 100%);
     height: 100vh;
@@ -13,7 +13,7 @@ body {
     align-items: center;
     justify-content: center;
     padding: 20px;
-}
+}*/
 
 /* Chat Button */
 #chat-button {
@@ -72,7 +72,7 @@ body {
 
 /* Chat Header */
 .chat-header {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #083D77, #adb5bd);
     color: white;
     padding: 15px 20px;
     display: flex;
@@ -119,7 +119,7 @@ body {
 }
 
 .message.user {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #083D77);
     color: white;
     margin-left: auto;
     border-bottom-right-radius: 4px;
@@ -201,7 +201,7 @@ body {
 }
 
 #send-btn {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #083D77, #adb5bd);
     border: none;
     color: white;
     width: 40px;
@@ -319,7 +319,7 @@ body {
 #chat-button:focus,
 #close-btn:focus,
 #send-btn:focus {
-    outline: 2px solid #667eea;
+    outline: 2px solid #083D77;
     outline-offset: 2px;
 }
 
