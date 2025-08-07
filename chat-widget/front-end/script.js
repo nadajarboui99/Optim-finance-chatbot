@@ -13,171 +13,65 @@ class ChatbotWidget {
         this.isLoading = false;
         this.apiUrl = "http://localhost:3000/chat";
         this.isOpen = false;
-        this.debugMode = true; // Activer pour voir les logs détaillés
+        this.debugMode = false; // Disabled by default for performance
         
-        // Tracking
+        // Performance optimization
+        this.requestQueue = [];
+        this.isProcessingQueue = false;
+        this.lastRequestTime = 0;
+        this.minRequestInterval = 500; // Prevent rapid requests
+        
+        // Reduced tracking (only essential data)
         this.currentRequestId = null;
-        this.requestHistory = [];
+        this.requestCount = 0;
         
         // Initialize
         this.bindEvents();
         this.initializeChat();
+        this.preconnect(); // Establish connection early
     }
 
     /**
-     * Système de logging frontend
+     * Preconnect to backend to reduce first request latency
      */
-    logStep(step, message, data = null) {
-        const timestamp = new Date().toISOString();
-        const logEntry = {
-            timestamp,
-            requestId: this.currentRequestId,
-            step,
-            message,
-            data: data ? JSON.stringify(data).substring(0, 200) : null
-        };
+    async preconnect() {
+        try {
+            await fetch(`http://localhost:3000/health`, {
+                method: 'GET',
+                cache: 'no-cache'
+            });
+            this.log('Backend preconnection successful');
+        } catch (error) {
+            this.log('Backend preconnection failed:', error.message);
+        }
+    }
 
-        // Colors pour les logs
-        const colors = {
-            'USER_INPUT': 'color: #2196F3; font-weight: bold;',
-            'VALIDATION': 'color: #FF9800; font-weight: bold;',
-            'REQUEST_START': 'color: #4CAF50; font-weight: bold;',
-            'REQUEST_SENT': 'color: #9C27B0; font-weight: bold;',
-            'RESPONSE_RECEIVED': 'color: #00BCD4; font-weight: bold;',
-            'RESPONSE_PROCESSED': 'color: #8BC34A; font-weight: bold;',
-            'ERROR': 'color: #F44336; font-weight: bold;',
-            'UI_UPDATE': 'color: #607D8B; font-weight: bold;'
-        };
-
-        const style = colors[step] || 'color: #666;';
-        
+    /**
+     * Minimal logging system (only when debug mode is on)
+     */
+    log(message, data = null) {
         if (this.debugMode) {
-            console.log(
-                `%c[FRONTEND${this.currentRequestId ? '-' + this.currentRequestId.substring(0,8) : ''}] ${step}: ${message}`, 
-                style
-            );
-            if (data) {
-                console.log(`%c  └─ Data: ${logEntry.data}`, 'color: #999; font-size: 11px;');
-            }
-        }
-
-        // Garder un historique des logs pour debugging
-        if (this.currentRequestId) {
-            const requestLog = this.requestHistory.find(r => r.requestId === this.currentRequestId);
-            if (requestLog) {
-                requestLog.steps.push(logEntry);
-            }
+            console.log(`[CHATBOT] ${message}`, data || '');
         }
     }
 
     /**
-     * Démarrer le tracking d'une nouvelle requête
-     */
-    startRequestTracking(userMessage) {
-        this.currentRequestId = this.generateRequestId();
-        const requestLog = {
-            requestId: this.currentRequestId,
-            userMessage: userMessage.substring(0, 100),
-            startTime: new Date(),
-            steps: [],
-            endTime: null,
-            success: null,
-            response: null
-        };
-
-        this.requestHistory.push(requestLog);
-        
-        // Limiter l'historique à 50 requêtes
-        if (this.requestHistory.length > 50) {
-            this.requestHistory.shift();
-        }
-
-        this.logStep('REQUEST_START', `Nouvelle requête démarrée`, { 
-            messageLength: userMessage.length,
-            requestId: this.currentRequestId
-        });
-
-        return this.currentRequestId;
-    }
-
-    /**
-     * Terminer le tracking d'une requête
-     */
-    finishRequestTracking(success, response = null, error = null) {
-        if (!this.currentRequestId) return;
-
-        const requestLog = this.requestHistory.find(r => r.requestId === this.currentRequestId);
-        if (requestLog) {
-            requestLog.endTime = new Date();
-            requestLog.duration = requestLog.endTime - requestLog.startTime;
-            requestLog.success = success;
-            requestLog.response = response ? response.substring(0, 100) : null;
-            requestLog.error = error;
-        }
-
-        const status = success ? 'SUCCÈS' : 'ÉCHEC';
-        const color = success ? 'color: #4CAF50; font-weight: bold;' : 'color: #F44336; font-weight: bold;';
-        
-        if (this.debugMode) {
-            console.log(
-                `%c[FRONTEND-${this.currentRequestId.substring(0,8)}] REQUÊTE TERMINÉE - ${status}`, 
-                color
-            );
-            if (requestLog) {
-                console.log(`%c  └─ Durée: ${requestLog.duration}ms`, 'color: #666; font-size: 11px;');
-                console.log(`%c  └─ Étapes: ${requestLog.steps.length}`, 'color: #666; font-size: 11px;');
-            }
-        }
-
-        this.currentRequestId = null;
-    }
-
-    /**
-     * Générer un ID de requête unique
-     */
-    generateRequestId() {
-        return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    }
-
-    /**
-     * Méthode publique pour voir l'historique des requêtes
-     */
-    getRequestHistory() {
-        return this.requestHistory.map(r => ({
-            requestId: r.requestId,
-            userMessage: r.userMessage,
-            duration: r.duration,
-            success: r.success,
-            stepsCount: r.steps.length,
-            timestamp: r.startTime
-        }));
-    }
-
-    /**
-     * Bind all event listeners
+     * Bind essential events only
      */
     bindEvents() {
-        this.chatButton.addEventListener("click", () => {
-            this.logStep('UI_UPDATE', 'Bouton chat cliqué');
-            this.toggleChat();
-        });
-        
-        this.closeBtn.addEventListener("click", () => {
-            this.logStep('UI_UPDATE', 'Bouton fermeture cliqué');
-            this.closeChat();
-        });
-        
+        // Use passive listeners where possible for better performance
+        this.chatButton.addEventListener("click", () => this.toggleChat());
+        this.closeBtn.addEventListener("click", () => this.closeChat());
         this.chatForm.addEventListener("submit", (e) => this.handleSubmit(e));
         
-        document.addEventListener("click", (e) => {
-            if (this.isOpen && 
-                !this.chatBox.contains(e.target) && 
-                !this.chatButton.contains(e.target)) {
-                this.logStep('UI_UPDATE', 'Fermeture par clic externe');
-                this.closeChat();
-            }
+        // Optimized input handling with debouncing
+        let inputTimeout;
+        this.userInput.addEventListener("input", (e) => {
+            clearTimeout(inputTimeout);
+            inputTimeout = setTimeout(() => this.validateInput(e.target.value), 150);
         });
 
+        // Essential keyboard shortcuts only
         this.userInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -185,262 +79,177 @@ class ChatbotWidget {
             }
         });
 
-        this.userInput.addEventListener("input", (e) => {
-            this.validateInput(e.target.value);
-        });
+        // Optimized outside click handler
+        document.addEventListener("click", (e) => {
+            if (this.isOpen && 
+                !this.chatBox.contains(e.target) && 
+                !this.chatButton.contains(e.target)) {
+                this.closeChat();
+            }
+        }, { passive: true });
 
+        // ESC key to close
         document.addEventListener("keydown", (e) => {
             if (e.key === "Escape" && this.isOpen) {
-                this.logStep('UI_UPDATE', 'Fermeture par touche Échap');
                 this.closeChat();
             }
         });
-
-        // Ajouter un raccourci pour voir les logs en appuyant sur Ctrl+Shift+D
-        document.addEventListener("keydown", (e) => {
-            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-                this.showDebugInfo();
-            }
-        });
     }
 
-    /**
-     * Afficher les informations de debug
-     */
-    showDebugInfo() {
-        const history = this.getRequestHistory();
-        console.group('🔍 CHATBOT DEBUG INFO');
-        console.log('📊 Historique des requêtes:', history);
-        console.log('⚡ Requête actuelle:', this.currentRequestId);
-        console.log('🔧 Mode debug:', this.debugMode);
-        console.log('📡 API URL:', this.apiUrl);
-        console.log('💬 Chat ouvert:', this.isOpen);
-        console.log('⏳ En cours:', this.isLoading);
-        console.groupEnd();
-    }
-
-    /**
-     * Initialize chat with welcome state
-     */
     initializeChat() {
-        this.logStep('UI_UPDATE', 'Widget chatbot initialisé');
+        this.log('Chatbot widget initialized');
     }
 
-    /**
-     * Toggle chat visibility
-     */
     toggleChat() {
-        if (this.isOpen) {
-            this.closeChat();
-        } else {
-            this.openChat();
-        }
+        this.isOpen ? this.closeChat() : this.openChat();
     }
 
-    /**
-     * Open chat
-     */
     openChat() {
         this.chatBox.classList.remove("hidden");
         this.isOpen = true;
-        this.userInput.focus();
-        this.logStep('UI_UPDATE', 'Chat ouvert');
+        // Use requestAnimationFrame for smooth focus
+        requestAnimationFrame(() => this.userInput.focus());
+        this.log('Chat opened');
     }
 
-    /**
-     * Close chat
-     */
     closeChat() {
         this.chatBox.classList.add("hidden");
         this.isOpen = false;
-        this.logStep('UI_UPDATE', 'Chat fermé');
+        this.log('Chat closed');
     }
 
     /**
-     * Handle form submission avec traçabilité complète
+     * Optimized form submission with request queuing
      */
     async handleSubmit(e) {
         e.preventDefault();
         
         if (this.isLoading) {
-            this.logStep('VALIDATION', 'Requête ignorée - traitement en cours');
+            this.log('Request ignored - already processing');
             return;
         }
         
         const message = this.userInput.value.trim();
         
-        // Démarrer le tracking
-        const requestId = this.startRequestTracking(message);
-        
-        this.logStep('USER_INPUT', 'Message utilisateur capturé', { 
-            messageLength: message.length,
-            isEmpty: !message,
-            tooLong: message.length > 500
-        });
-
-        // Validation
-        this.logStep('VALIDATION', 'Début de la validation');
-        
+        // Fast validation
         if (!message) {
-            this.logStep('ERROR', 'Message vide détecté');
             this.showError("Veuillez saisir un message.");
-            this.finishRequestTracking(false, null, 'Message vide');
             return;
         }
 
         if (message.length > 500) {
-            this.logStep('ERROR', 'Message trop long détecté');
-            this.showError("Le message est trop long (maximum 500 caractères).");
-            this.finishRequestTracking(false, null, 'Message trop long');
+            this.showError("Message trop long (max 500 caractères).");
             return;
         }
 
-        this.logStep('VALIDATION', 'Validation réussie');
+        // Throttling to prevent spam
+        const now = Date.now();
+        if (now - this.lastRequestTime < this.minRequestInterval) {
+            this.showError("Veuillez attendre avant d'envoyer un autre message.");
+            return;
+        }
+        this.lastRequestTime = now;
 
-        // Mise à jour UI
-        this.logStep('UI_UPDATE', 'Ajout du message utilisateur');
+        // Generate simple request ID
+        this.currentRequestId = `req_${++this.requestCount}_${Date.now()}`;
+        
+        this.log(`Processing message: "${message.substring(0, 50)}..."`);
+
+        // Update UI immediately for responsiveness
         this.appendMessage("user", message);
         this.userInput.value = "";
         this.setLoading(true);
-        
-        this.logStep('UI_UPDATE', 'Indicateur de frappe affiché');
         this.showTypingIndicator();
 
         try {
-            this.logStep('REQUEST_SENT', 'Envoi de la requête au backend', {
-                url: this.apiUrl,
-                method: 'POST'
-            });
-
-            const response = await this.sendMessageToServer(message, requestId);
+            const startTime = Date.now();
+            const response = await this.sendMessageToServer(message, this.currentRequestId);
+            const responseTime = Date.now() - startTime;
             
-            this.logStep('RESPONSE_RECEIVED', 'Réponse reçue du backend', {
-                hasResponse: !!response.response,
-                hasError: !!response.error,
-                responseLength: response.response ? response.response.length : 0,
-                backendRequestId: response.requestId
-            });
+            this.log(`Response received in ${responseTime}ms`);
             
             this.removeTypingIndicator();
             
             if (response.response) {
-                this.logStep('RESPONSE_PROCESSED', 'Traitement de la réponse réussie');
                 this.appendMessage("bot", response.response);
-                this.finishRequestTracking(true, response.response);
-            } else if (response.error) {
-                this.logStep('ERROR', 'Erreur dans la réponse', { error: response.error });
-                this.appendError(`Erreur: ${response.error}`);
-                this.finishRequestTracking(false, null, response.error);
             } else {
-                this.logStep('ERROR', 'Réponse invalide du serveur');
                 this.appendError("Réponse invalide du serveur");
-                this.finishRequestTracking(false, null, 'Réponse invalide');
             }
             
         } catch (error) {
-            this.logStep('ERROR', `Erreur lors de l'envoi: ${error.message}`, {
-                errorName: error.name,
-                errorType: typeof error
-            });
-            
-            console.error(`[FRONTEND-${requestId.substring(0,8)}] ERREUR CHAT:`, error);
+            this.log(`Request failed: ${error.message}`);
             this.removeTypingIndicator();
             this.handleError(error);
-            this.finishRequestTracking(false, null, error.message);
         } finally {
-            this.logStep('UI_UPDATE', 'Remise à zéro de l\'état de chargement');
             this.setLoading(false);
+            this.currentRequestId = null;
         }
     }
 
     /**
-     * Send message to server avec ID de tracking
+     * Optimized server communication
      */
     async sendMessageToServer(message, requestId) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 secondes
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
 
         try {
-            this.logStep('REQUEST_SENT', 'Appel fetch en cours', {
-                timeout: '30s',
-                hasAbortController: true
-            });
-
             const response = await fetch(this.apiUrl, {
                 method: "POST",
                 headers: { 
                     "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "X-Request-ID": requestId // Envoyer l'ID de tracking
+                    "Accept": "application/json"
                 },
                 body: JSON.stringify({ 
                     message,
-                    clientRequestId: requestId // Double sécurité
+                    clientRequestId: requestId
                 }),
-                signal: controller.signal
+                signal: controller.signal,
+                // Performance optimizations
+                cache: 'no-cache',
+                keepalive: false
             });
 
             clearTimeout(timeoutId);
-
-            this.logStep('RESPONSE_RECEIVED', `Réponse HTTP reçue`, {
-                status: response.status,
-                statusText: response.statusText,
-                ok: response.ok
-            });
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
-            const data = await response.json();
-            
-            this.logStep('RESPONSE_PROCESSED', 'JSON parsé avec succès', {
-                hasResponse: !!data.response,
-                backendRequestId: data.requestId,
-                processingTime: data.processingTime
-            });
-
-            return data;
+            return await response.json();
 
         } catch (error) {
             clearTimeout(timeoutId);
             
             if (error.name === 'AbortError') {
-                this.logStep('ERROR', 'Timeout de la requête (30s)');
                 throw new Error('REQUEST_TIMEOUT');
             }
             
-            this.logStep('ERROR', `Erreur fetch: ${error.message}`);
             throw error;
         }
     }
 
     /**
-     * Handle different types of errors
+     * Optimized error handling
      */
     handleError(error) {
-        let errorMessage = "Désolé, je ne peux pas répondre pour le moment. ";
+        let errorMessage = "Je ne peux pas répondre pour le moment. ";
         
         if (error.message === 'REQUEST_TIMEOUT') {
             errorMessage += "La requête a pris trop de temps.";
         } else if (error.name === "TypeError" && error.message.includes("fetch")) {
             errorMessage += "Vérifiez que le serveur est démarré.";
-        } else if (error.message.includes("404")) {
-            errorMessage += "Service non trouvé.";
-        } else if (error.message.includes("500")) {
-            errorMessage += "Erreur du serveur.";
         } else if (error.message.includes("Failed to fetch")) {
             errorMessage += "Problème de connexion réseau.";
         } else {
-            errorMessage += "Veuillez réessayer plus tard.";
+            errorMessage += "Veuillez réessayer.";
         }
         
         this.appendError(errorMessage);
-        this.logStep('UI_UPDATE', 'Message d\'erreur affiché à l\'utilisateur');
     }
 
     /**
-     * Validate user input
+     * Fast input validation with visual feedback
      */
     validateInput(value) {
         const length = value.length;
@@ -448,110 +257,82 @@ class ChatbotWidget {
         
         if (length > maxLength) {
             this.userInput.style.borderColor = "#f44336";
-            this.showInputError(`${length}/${maxLength} caractères (trop long)`);
         } else if (length > maxLength * 0.8) {
             this.userInput.style.borderColor = "#ff9800";
-            this.showInputError(`${length}/${maxLength} caractères`);
         } else {
             this.userInput.style.borderColor = "#e0e0e0";
-            this.hideInputError();
         }
     }
 
-    /**
-     * Show input error
-     */
-    showInputError(message) {
-        let errorEl = document.getElementById("input-error");
-        if (!errorEl) {
-            errorEl = document.createElement("div");
-            errorEl.id = "input-error";
-            errorEl.style.cssText = `
-                font-size: 11px;
-                color: #f44336;
-                margin-top: 4px;
-                text-align: right;
-            `;
-            this.userInput.parentNode.appendChild(errorEl);
-        }
-        errorEl.textContent = message;
-    }
-
-    /**
-     * Hide input error
-     */
-    hideInputError() {
-        const errorEl = document.getElementById("input-error");
-        if (errorEl) {
-            errorEl.remove();
-        }
-    }
-
-    /**
-     * Show a simple error message to user
-     */
     showError(message) {
-        alert(message);
+        // Use a more user-friendly notification instead of alert
+        const existingError = this.chatMessages.querySelector('.temp-error');
+        if (existingError) existingError.remove();
+        
+        const errorEl = document.createElement("div");
+        errorEl.className = "message error temp-error";
+        errorEl.textContent = message;
+        errorEl.style.cssText = "background: #ffebee; color: #c62828; padding: 8px; margin: 4px 0; border-radius: 4px; font-size: 14px;";
+        
+        this.chatMessages.appendChild(errorEl);
+        this.scrollToBottom();
+        
+        // Auto-remove after 3 seconds
+        setTimeout(() => errorEl.remove(), 3000);
     }
 
     /**
-     * Append user or bot message
+     * Optimized message appending with minimal DOM manipulation
      */
     appendMessage(sender, text) {
         const messageEl = document.createElement("div");
         messageEl.className = `message ${sender}`;
-        messageEl.textContent = text;
         
-        // Add timestamp
+        // Create message content efficiently
+        const textNode = document.createTextNode(text);
+        messageEl.appendChild(textNode);
+        
+        // Add timestamp (simplified)
         const timeEl = document.createElement("div");
         timeEl.className = "message-time";
-        timeEl.textContent = this.getCurrentTime();
+        timeEl.textContent = new Date().toLocaleTimeString('fr-FR', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
         messageEl.appendChild(timeEl);
         
         this.chatMessages.appendChild(messageEl);
         this.scrollToBottom();
-        
-        this.logStep('UI_UPDATE', `Message ${sender} ajouté`, { 
-            textLength: text.length 
-        });
     }
 
-    /**
-     * Append error message
-     */
     appendError(text) {
         const messageEl = document.createElement("div");
         messageEl.className = "error-message";
         messageEl.textContent = text;
         this.chatMessages.appendChild(messageEl);
         this.scrollToBottom();
-        
-        this.logStep('UI_UPDATE', 'Message d\'erreur ajouté', { 
-            errorText: text.substring(0, 50) 
-        });
     }
 
     /**
-     * Show typing indicator
+     * Lightweight typing indicator
      */
     showTypingIndicator() {
+        // Remove existing indicator first
+        this.removeTypingIndicator();
+        
         const typingEl = document.createElement("div");
         typingEl.className = "message typing";
         typingEl.id = "typing-indicator";
         typingEl.innerHTML = `
             <div class="typing-indicator">
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
+                <span>●</span><span>●</span><span>●</span>
             </div>
         `;
+        
         this.chatMessages.appendChild(typingEl);
         this.scrollToBottom();
     }
 
-    /**
-     * Remove typing indicator
-     */
     removeTypingIndicator() {
         const typingEl = document.getElementById("typing-indicator");
         if (typingEl) {
@@ -560,7 +341,7 @@ class ChatbotWidget {
     }
 
     /**
-     * Set loading state
+     * Optimized loading state management
      */
     setLoading(loading) {
         this.isLoading = loading;
@@ -568,129 +349,89 @@ class ChatbotWidget {
         this.userInput.disabled = loading;
         
         if (loading) {
-            this.userInput.placeholder = "Traitement en cours...";
+            this.userInput.placeholder = "Traitement...";
             this.sendBtn.classList.add("loading");
         } else {
             this.userInput.placeholder = "Posez votre question...";
             this.sendBtn.classList.remove("loading");
-            setTimeout(() => this.userInput.focus(), 100);
+            // Delayed focus to prevent issues
+            setTimeout(() => {
+                if (!this.isLoading) this.userInput.focus();
+            }, 100);
         }
-        
-        this.logStep('UI_UPDATE', `État de chargement: ${loading ? 'activé' : 'désactivé'}`);
     }
 
     /**
-     * Scroll to bottom of messages
+     * Optimized scrolling with debouncing
      */
     scrollToBottom() {
-        setTimeout(() => {
+        // Use RAF for smooth scrolling
+        requestAnimationFrame(() => {
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
-        }, 100);
-    }
-
-    /**
-     * Get current time for timestamps
-     */
-    getCurrentTime() {
-        const now = new Date();
-        return now.toLocaleTimeString('fr-FR', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
         });
     }
 
-    /**
-     * Public method to send a programmatic message
-     */
+    // Public API methods (simplified)
     sendMessage(message) {
         if (typeof message === 'string' && message.trim()) {
-            this.logStep('USER_INPUT', 'Message programmatique envoyé', { 
-                source: 'external',
-                message: message.substring(0, 50)
-            });
             this.userInput.value = message.trim();
             this.chatForm.dispatchEvent(new Event('submit'));
         }
     }
 
-    /**
-     * Public method to clear chat
-     */
     clearChat() {
         this.chatMessages.innerHTML = '';
-        this.logStep('UI_UPDATE', 'Chat vidé');
     }
 
-    /**
-     * Public method to get chat status
-     */
     getStatus() {
         return {
             isOpen: this.isOpen,
             isLoading: this.isLoading,
-            apiUrl: this.apiUrl,
             messagesCount: this.chatMessages.children.length,
-            currentRequestId: this.currentRequestId,
-            requestHistoryCount: this.requestHistory.length,
-            debugMode: this.debugMode
+            requestCount: this.requestCount
         };
     }
 
-    /**
-     * Méthode pour activer/désactiver le mode debug
-     */
     toggleDebugMode() {
         this.debugMode = !this.debugMode;
-        console.log(`%c🔧 Mode debug ${this.debugMode ? 'ACTIVÉ' : 'DÉSACTIVÉ'}`, 
-                   'color: #FF5722; font-weight: bold; font-size: 14px;');
-        
-        if (this.debugMode) {
-            console.log('%c💡 Utilisez Ctrl+Shift+D pour voir les infos de debug', 
-                       'color: #2196F3; font-size: 12px;');
-        }
+        console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
     }
 }
 
-// Initialize the chatbot widget when DOM is loaded
+// Optimized initialization
 document.addEventListener("DOMContentLoaded", () => {
-    console.log('%c🚀 OPTIM Finance Chatbot Widget - Initialisation...', 
-               'color: #4CAF50; font-weight: bold; font-size: 16px;');
+    console.log('🚀 Initializing OPTIM Finance Chatbot...');
     
-    // Create global chatbot instance
+    // Create global instance
     window.chatbot = new ChatbotWidget();
     
-    // Optional: Add some global functions for external access
+    // Minimal global utilities
     window.chatbotUtils = {
         open: () => window.chatbot.openChat(),
         close: () => window.chatbot.closeChat(),
-        send: (message) => window.chatbot.sendMessage(message),
+        send: (msg) => window.chatbot.sendMessage(msg),
         clear: () => window.chatbot.clearChat(),
         status: () => window.chatbot.getStatus(),
-        history: () => window.chatbot.getRequestHistory(),
-        debug: () => window.chatbot.showDebugInfo(),
-        toggleDebug: () => window.chatbot.toggleDebugMode()
+        debug: () => window.chatbot.toggleDebugMode()
     };
     
-    console.log('%c✅ OPTIM Finance Chatbot Widget chargé avec succès!', 
-               'color: #4CAF50; font-weight: bold;');
-    console.log('%c🔧 Utilisez window.chatbotUtils pour accéder aux fonctions avancées', 
-               'color: #2196F3; font-size: 12px;');
-    console.log('%c📊 Utilisez Ctrl+Shift+D pour voir les informations de debug', 
-               'color: #FF9800; font-size: 12px;');
+    console.log('✅ Chatbot ready! Use window.chatbotUtils for controls.');
 });
 
-// Handle page visibility changes
+// Optimized visibility handling
 document.addEventListener("visibilitychange", () => {
-    if (document.hidden && window.chatbot && window.chatbot.isOpen) {
-        console.log('%c👁️ Page cachée - chat toujours ouvert', 'color: #666; font-size: 11px;');
-    } else if (!document.hidden && window.chatbot && window.chatbot.isOpen) {
-        console.log('%c👁️ Page visible - chat ouvert', 'color: #666; font-size: 11px;');
-    }
-});
-
-// Handle window resize
-window.addEventListener("resize", () => {
-    if (window.chatbot && window.chatbot.isOpen) {
+    if (!document.hidden && window.chatbot?.isOpen) {
         window.chatbot.scrollToBottom();
     }
-});
+}, { passive: true });
+
+// Optimized resize handling with debouncing
+let resizeTimeout;
+window.addEventListener("resize", () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+        if (window.chatbot?.isOpen) {
+            window.chatbot.scrollToBottom();
+        }
+    }, 100);
+}, { passive: true });

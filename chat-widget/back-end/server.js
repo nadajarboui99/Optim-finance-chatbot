@@ -6,74 +6,169 @@ const path = require("path");
 const app = express();
 const port = 3000;
 
-// CORS configuration
-const corsOptions = {
-    origin: function (origin, callback) {
-        const allowedOrigins = [
-            'http://localhost:3000',
-            'http://localhost:5500',
-            'http://127.0.0.1:3000',
-            'http://127.0.0.1:5500',
-            null // Allows file:// protocol
-        ];
-        if (allowedOrigins.includes(origin) || !origin) {
-            return callback(null, true);
-        }
-        return callback(null, true); // Allow all origins in development
-    },
+// Pre-spawn Python process for faster responses
+let pythonProcess = null;
+let isProcessReady = false;
+let pendingRequests = new Map();
+let requestCounter = 0;
+
+// CORS configuration (simplified for development)
+app.use(cors({
+    origin: true, // Allow all origins in development
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'x-request-id'],
     credentials: false
-};
+}));
 
-app.use(cors(corsOptions));
+app.use(express.json({ limit: '1mb' })); // Add size limit
 
-// Handle preflight requests
+// Optimized request logging (minimal overhead)
 app.use((req, res, next) => {
-    if (req.method === 'OPTIONS') {
-        res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-        res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, x-request-id');
-        return res.sendStatus(200);
+    if (req.path === '/chat') {
+        console.log(`[${Date.now()}] CHAT REQUEST`);
     }
     next();
 });
 
-app.use(express.json());
+/**
+ * Initialize persistent Python process for faster responses
+ */
+function initializePythonProcess() {
+    // Try persistent script first, fallback to original if not available
+    const persistentScriptPath = path.join(__dirname, "../../Implementation/src/chatbot_persistent.py");
+    const originalScriptPath = path.join(__dirname, "../../Implementation/src/chatbot.py");
+    const pythonPath = '/Users/Apple/Documents/stages/Stage_StartNow/chatbot/.venv/bin/python';
+    
+    // Check if persistent script exists
+    const fs = require('fs');
+    const scriptPath = fs.existsSync(persistentScriptPath) ? persistentScriptPath : originalScriptPath;
+    
+    if (scriptPath === originalScriptPath) {
+        console.log("⚠️ Using fallback mode - persistent script not found");
+        return; // Don't start persistent process, use fallback for all requests
+    }
+    
+    console.log("🔄 Starting persistent Python process...");
+    
+    pythonProcess = spawn(pythonPath, [scriptPath], {
+        cwd: path.join(__dirname, "../../Implementation"),
+        stdio: ['pipe', 'pipe', 'pipe'] // Enable stdin/stdout/stderr pipes
+    });
 
-// Request logging
-app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-    console.log('Origin:', req.headers.origin || 'undefined');
-    next();
-});
+    let buffer = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+        buffer += data.toString();
+        
+        // Process complete responses (assuming newline-delimited JSON)
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep incomplete line in buffer
+        
+        lines.forEach(line => {
+            if (line.trim()) {
+                try {
+                    const response = JSON.parse(line);
+                    handlePythonResponse(response);
+                } catch (e) {
+                    console.error("Failed to parse Python response:", line);
+                }
+            }
+        });
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+        const error = data.toString();
+        if (error.includes('READY')) {
+            isProcessReady = true;
+            console.log("✅ Python process ready");
+        } else {
+            console.error("Python stderr:", error);
+        }
+    });
+
+    pythonProcess.on('close', (code) => {
+        console.log(`❌ Python process closed with code ${code}`);
+        isProcessReady = false;
+        // Auto-restart on unexpected closure
+        setTimeout(initializePythonProcess, 1000);
+    });
+
+    pythonProcess.on('error', (err) => {
+        console.error("❌ Python process error:", err.message);
+        isProcessReady = false;
+    });
+}
 
 /**
- * Function to call the Python script and get chatbot response
+ * Handle response from persistent Python process
  */
-function handleLLM(message, clientRequestId) {
+function handlePythonResponse(response) {
+    const { requestId, result, error } = response;
+    
+    if (pendingRequests.has(requestId)) {
+        const { resolve, reject } = pendingRequests.get(requestId);
+        pendingRequests.delete(requestId);
+        
+        if (error) {
+            reject(new Error(error));
+        } else {
+            resolve(result);
+        }
+    }
+}
+
+/**
+ * Send message to persistent Python process
+ */
+function sendToPythonProcess(message, requestId) {
+    return new Promise((resolve, reject) => {
+        if (!pythonProcess || !isProcessReady) {
+            return reject(new Error("Python process not ready"));
+        }
+
+        // Store request callbacks
+        pendingRequests.set(requestId, { resolve, reject });
+        
+        // Set timeout
+        setTimeout(() => {
+            if (pendingRequests.has(requestId)) {
+                pendingRequests.delete(requestId);
+                reject(new Error("Request timeout"));
+            }
+        }, 15000); // Reduced timeout to 15s
+
+        // Send request to Python process
+        const request = JSON.stringify({
+            requestId,
+            message,
+            timestamp: Date.now()
+        }) + '\n';
+        
+        pythonProcess.stdin.write(request);
+    });
+}
+
+/**
+ * Fallback function using your original chatbot.py script
+ */
+function handleLLMFallback(message, clientRequestId) {
     return new Promise((resolve, reject) => {
         const pythonScriptPath = path.join(__dirname, "../../Implementation/src/chatbot.py");
-        const pythonPath = '/Users/Apple/Documents/stages/Stage_StartNow/chatbot/.venv/bin/python'; // Updated path
-        
-        console.log(`🐍 Calling Python script: ${pythonScriptPath}`);
-        console.log(`💬 With message: "${message}"`);
+        const pythonPath = '/Users/Apple/Documents/stages/Stage_StartNow/chatbot/.venv/bin/python';
         
         const pythonProcess = spawn(pythonPath, [pythonScriptPath, message], {
-            cwd: path.join(__dirname, "../../Implementation") // Working directory for imports
+            cwd: path.join(__dirname, "../../Implementation"),
+            stdio: ['ignore', 'pipe', 'pipe'] // Optimized stdio
         });
 
         let scriptOutput = '';
         let scriptError = '';
 
+        // Reduced timeout
         const timeoutId = setTimeout(() => {
-            pythonProcess.kill();
-            console.error(`${new Date().toISOString()} - Python script timeout after 25s`);
-            reject({
-                type: 'timeout',
-                message: 'Python script timeout after 25s'
-            });
-        }, 50000); // 25s timeout to stay within frontend's 30s limit
+            pythonProcess.kill('SIGKILL'); // Force kill
+            reject(new Error('Timeout'));
+        }, 20000); // 20s timeout
 
         pythonProcess.stdout.on('data', (data) => {
             scriptOutput += data.toString();
@@ -85,28 +180,17 @@ function handleLLM(message, clientRequestId) {
 
         pythonProcess.on('close', (code) => {
             clearTimeout(timeoutId);
-            console.log(`${new Date().toISOString()} - Python script completed with code ${code}`);
             
             if (code === 0 && scriptOutput) {
-                console.log(`✅ Python script output: ${scriptOutput.substring(0, 100)}${scriptOutput.length > 100 ? '...' : ''}`);
                 resolve(scriptOutput.trim());
             } else {
-                console.error(`❌ Python script error: ${scriptError || 'No output'}`);
-                reject({
-                    type: 'python_error',
-                    message: scriptError || 'No output from Python script',
-                    code
-                });
+                reject(new Error(scriptError || 'No output from Python script'));
             }
         });
 
         pythonProcess.on('error', (err) => {
             clearTimeout(timeoutId);
-            console.error(`❌ Python process error: ${err.message}`);
-            reject({
-                type: 'python_error',
-                message: err.message
-            });
+            reject(err);
         });
     });
 }
@@ -114,173 +198,115 @@ function handleLLM(message, clientRequestId) {
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ 
-        status: 'OK', 
-        timestamp: new Date().toISOString(),
-        service: 'OPTIM Finance Chatbot Backend'
+        status: 'OK',
+        pythonReady: isProcessReady,
+        pendingRequests: pendingRequests.size,
+        timestamp: Date.now()
     });
 });
 
-// Test endpoint
-app.post("/test", (req, res) => {
-    console.log("Test endpoint hit");
-    const { message } = req.body;
-    
-    if (!message) {
-        return res.status(400).json({ error: "Message required" });
-    }
-    
-    res.json({ 
-        response: `Test echo: ${message}`,
-        timestamp: new Date().toISOString(),
-        status: 'success'
-    });
-});
-
-// Main chat endpoint
+// Optimized chat endpoint
 app.post("/chat", async (req, res) => {
-    let clientRequestId = null; // Default value
+    const startTime = Date.now();
+    let requestId = `req_${++requestCounter}`;
+    
     try {
-        const { message, clientRequestId: requestId } = req.body;
-        clientRequestId = requestId; // Assign value
+        const { message, clientRequestId } = req.body;
+        if (clientRequestId) requestId = clientRequestId;
         
-        // Validate input
-        if (!message) {
+        // Fast validation
+        if (!message?.trim() || message.length > 1000) {
             return res.status(400).json({ 
-                error: "Message manquant",
-                code: "MISSING_MESSAGE",
-                requestId: clientRequestId,
-                timestamp: new Date().toISOString()
+                error: !message?.trim() ? "Message vide" : "Message trop long",
+                requestId,
+                timestamp: Date.now()
             });
         }
+
+        console.log(`[${requestId}] Processing: "${message.substring(0, 50)}..."`);
         
-        if (typeof message !== 'string') {
-            return res.status(400).json({ 
-                error: "Le message doit être une chaîne de caractères",
-                code: "INVALID_MESSAGE_TYPE",
-                requestId: clientRequestId,
-                timestamp: new Date().toISOString()
-            });
+        let response;
+        
+        // Try persistent process first, fallback to spawn if not available
+        try {
+            if (isProcessReady) {
+                response = await sendToPythonProcess(message.trim(), requestId);
+                console.log(`[${requestId}] ✅ Persistent response in ${Date.now() - startTime}ms`);
+            } else {
+                throw new Error("Persistent process not ready");
+            }
+        } catch (persistentError) {
+            console.log(`[${requestId}] 🔄 Falling back to spawn method`);
+            response = await handleLLMFallback(message.trim(), requestId);
+            console.log(`[${requestId}] ✅ Fallback response in ${Date.now() - startTime}ms`);
         }
-        
-        if (message.trim().length === 0) {
-            return res.status(400).json({ 
-                error: "Le message ne peut pas être vide",
-                code: "EMPTY_MESSAGE",
-                requestId: clientRequestId,
-                timestamp: new Date().toISOString()
-            });
-        }
-        
-        if (message.length > 1000) {
-            return res.status(400).json({ 
-                error: "Le message est trop long (maximum 1000 caractères)",
-                code: "MESSAGE_TOO_LONG",
-                requestId: clientRequestId,
-                timestamp: new Date().toISOString()
-            });
-        }
-        
-        console.log(`Processing user message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
-        
-        const response = await handleLLM(message.trim(), clientRequestId);
-        
-        console.log(`Chatbot response: "${response.substring(0, 100)}${response.length > 100 ? '...' : ''}"`);
         
         res.json({ 
-            response: response,
-            requestId: clientRequestId,
-            timestamp: new Date().toISOString(),
-            status: 'success'
+            response,
+            requestId,
+            processingTime: Date.now() - startTime,
+            timestamp: Date.now()
         });
         
     } catch (error) {
-        console.error("Server error:", error);
+        const processingTime = Date.now() - startTime;
+        console.error(`[${requestId}] ❌ Error after ${processingTime}ms:`, error.message);
         
-        let errorMessage = "Erreur interne du serveur";
-        let errorCode = "INTERNAL_ERROR";
         let statusCode = 500;
+        let errorMessage = "Erreur interne";
         
-        if (error.type === 'timeout') {
-            errorMessage = "Le script Python a pris trop de temps";
-            errorCode = "PYTHON_TIMEOUT";
+        if (error.message === 'Timeout') {
             statusCode = 504;
-        } else if (error.type === 'python_error') {
-            errorMessage = `Erreur lors de l'exécution du chatbot: ${error.message}`;
-            errorCode = "CHATBOT_ERROR";
-            if (error.message.includes('No such file')) {
-                errorMessage = "Script Python introuvable. Vérifiez le chemin.";
-                errorCode = "PYTHON_SCRIPT_NOT_FOUND";
-            }
+            errorMessage = "Délai d'attente dépassé";
+        } else if (error.message.includes('not ready')) {
+            statusCode = 503;
+            errorMessage = "Service temporairement indisponible";
         }
         
         res.status(statusCode).json({ 
             error: errorMessage,
-            code: errorCode,
-            requestId: clientRequestId || 'unknown',
-            timestamp: new Date().toISOString(),
-            details: error.message // Include detailed error message
+            requestId,
+            processingTime,
+            timestamp: Date.now()
         });
     }
 });
 
-// Handle GET /chat (unsupported)
-app.get("/chat", (req, res) => {
-    console.log(`${new Date().toISOString()} - GET /chat (unsupported)`);
-    res.status(405).json({ 
-        error: "Méthode non autorisée. Utilisez POST pour les requêtes de chat.",
-        code: "METHOD_NOT_ALLOWED",
-        timestamp: new Date().toISOString()
-    });
-});
-
-// 404 handler
+// 404 handler (minimal)
 app.use((req, res) => {
-    res.status(404).json({ 
-        error: 'Endpoint non trouvé',
-        code: 'NOT_FOUND',
-        path: req.path,
-        timestamp: new Date().toISOString()
-    });
+    res.status(404).json({ error: 'Not found', timestamp: Date.now() });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err);
-    res.status(500).json({ 
-        error: 'Erreur interne du serveur',
-        code: 'UNHANDLED_ERROR',
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Start server
+// Start server and initialize Python process
 app.listen(port, () => {
-    console.log(`🚀 Serveur Node.js lancé sur http://localhost:${port}`);
-    console.log(`📊 Health check: http://localhost:${port}/health`);
-    console.log(`🧪 Test endpoint: http://localhost:${port}/test`);
-    console.log(`💬 Chat endpoint: http://localhost:${port}/chat`);
+    console.log(`🚀 Server running on http://localhost:${port}`);
     console.log(`🕐 Started at: ${new Date().toISOString()}`);
-    console.log(`📂 Working directory: ${__dirname}`);
+    
+    // Initialize persistent Python process for better performance
+    initializePythonProcess();
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-    console.log('\n🛑 Arrêt du serveur...');
-    process.exit(0);
-});
+const gracefulShutdown = () => {
+    console.log('\n🛑 Shutting down gracefully...');
+    
+    if (pythonProcess) {
+        pythonProcess.kill();
+    }
+    
+    setTimeout(() => process.exit(0), 1000);
+};
 
-process.on('SIGTERM', () => {
-    console.log('\n🛑 Arrêt du serveur...');
-    process.exit(0);
-});
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
-    process.exit(1);
+    gracefulShutdown();
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    process.exit(1);
+process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled Rejection:', reason);
+    gracefulShutdown();
 });
