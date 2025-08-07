@@ -1,9 +1,10 @@
 import os
 # Résoudre le problème des tokenizers Hugging Face
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
+import sys
 from mistralai import Mistral
 from typing import List, Dict, Any, Optional
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import Config
 import traceback
 
