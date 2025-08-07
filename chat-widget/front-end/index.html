@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPTIM Finance Chatbot</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Chat Button -->
+    <button id="chat-button">
+        <svg viewBox="0 0 24 24">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+        </svg>
+    </button>
+
+    <!-- Chat Box -->
+    <div id="chat-box" class="hidden">
+        <div class="chat-header">
+            <h3>OPTIM Finance Assistant</h3>
+            <button id="close-btn">&times;</button>
+        </div>
+        
+        <div class="welcome-message">
+            Bonjour ! Je suis votre assistant OPTIM Finance. Comment puis-je vous aider aujourd'hui ?
+        </div>
+        
+        <div id="chat-messages"></div>
+        
+        <div class="chat-footer">
+            <form id="chat-form">
+                <input 
+                    type="text" 
+                    id="user-input" 
+                    placeholder="Posez votre question..."
+                    maxlength="500"
+                    required
+                />
+                <button type="submit" id="send-btn">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

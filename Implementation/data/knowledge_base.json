@@ -1,0 +1,212 @@
+{
+  "knowledge_base": {
+    "metadata": {
+      "company": "OPTIM Finance",
+      "domain": "Solutions financières pour freelances IT",
+      "last_updated": "2024",
+      "version": "1.1"
+    },
+    "chunks": [
+      {
+        "id": "company_overview",
+        "title": "Présentation OPTIM Finance",
+        "content": "OPTIM Finance est établie sur le marché français depuis 2015. Fondée par Tahar JRAD (CEO & Founder), l'entreprise offre une solution complète pour les freelances IT. Elle propose des missions IT de qualité en banque, assurance et industrie, conseille sur les meilleures solutions financières (portage salarial, auto-entreprise, société), et accompagne sur les choix de carrière via coaching et formation. OPTIM Finance est une communauté d'experts compétents et ambitieux, animés par l'entraide et l'esprit d'entreprendre.",
+        "keywords": ["OPTIM Finance", "freelance", "IT", "Tahar JRAD", "2015", "banque", "assurance", "industrie"],
+        "category": "company_info",
+        "intent": ["company_presentation", "history", "founder"]
+      },
+      {
+        "id": "company_values",
+        "title": "Valeurs d'OPTIM Finance",
+        "content": "Les valeurs d'OPTIM Finance sont : Transparence, Conseil et solutions personnalisées, Expertise. L'entreprise propose une approche 360° qui commence par la recherche de missions, le choix de la solution financière adaptée, jusqu'au conseil, formation et coaching.",
+        "keywords": ["valeurs", "transparence", "conseil", "expertise", "approche 360"],
+        "category": "company_info",
+        "intent": ["values", "approach"]
+      },
+      {
+        "id": "portage_salarial_definition",
+        "title": "Définition du portage salarial",
+        "content": "Le portage salarial est une relation tripartite entre une personne, un client et une société de portage. Il permet d'exercer une activité indépendante et autonome, tout en conservant le statut de salarié et les avantages du salariat. C'est l'équilibre entre l'entrepreneuriat et le salariat, entre la flexibilité et la sécurité.",
+        "keywords": ["portage salarial", "tripartite", "salarié", "indépendant", "flexibilité", "sécurité"],
+        "category": "portage_salarial",
+        "intent": ["definition_portage", "what_is_portage"]
+      },
+      {
+        "id": "portage_salarial_target",
+        "title": "À qui s'adresse le portage salarial",
+        "content": "Le portage salarial est fait pour vous si : vous souhaitez vous mettre à votre compte sans gérer l'administratif, vous voulez augmenter vos revenus, vous souhaitez tester votre projet sans risque, vous voulez cumuler retraite et activité indépendante, vous souhaitez facturer au tarif que vous négociez.",
+        "keywords": ["à son compte", "administratif", "revenus", "test projet", "retraite", "tarif"],
+        "category": "portage_salarial",
+        "intent": ["who_portage", "target_portage", "eligibility_portage"]
+      },
+      {
+        "id": "portage_salarial_pricing",
+        "title": "Tarif portage salarial OPTIM Finance",
+        "content": "Le portage salarial chez OPTIM Finance coûte 4% de frais de gestion, tout compris. Aucun frais annexe. Pas de reliquat de fin d'année. Pas de surprise. Le salaire est payé le 2 du mois suivant la prestation.",
+        "keywords": ["4%", "frais de gestion", "tout compris", "pas de frais annexe", "salaire", "2 du mois"],
+        "category": "portage_salarial",
+        "intent": ["price_portage", "cost_portage", "fees_portage"]
+      },
+      {
+        "id": "portage_salarial_benefits",
+        "title": "Avantages portage salarial OPTIM Finance",
+        "content": "Avantages inclus : Choix entre CDI et CDD (modifiable), mutuelle santé AXA à 82€/mois pour vous et vos enfants, avance de salaire payé le 2 du mois, Plan Épargne Entreprise, assurance RCP et garantie financière, 100% avance de trésorerie, frais professionnels étendus et simplifiés.",
+        "keywords": ["CDI", "CDD", "mutuelle AXA", "82 euros", "PEE", "assurance RCP", "avance trésorerie"],
+        "category": "portage_salarial",
+        "intent": ["benefits_portage", "advantages_portage", "insurance_portage"]
+      },
+      {
+        "id": "portage_professional_expenses",
+        "title": "Frais professionnels portage salarial",
+        "content": "Frais professionnels étendus : frais de repas 19€/jour sans justificatif, frais kilométriques au réel calculés automatiquement, frais de transport en commun pris en charge à 100%, frais bureautiques (scanner, imprimante, recharge, fournitures), achat de matériel à -50%, achat de formation à -50%.",
+        "keywords": ["frais repas", "19 euros", "kilométriques", "transport", "bureautique", "matériel -50%", "formation -50%"],
+        "category": "portage_salarial",
+        "intent": ["expenses_portage", "professional_costs", "reimbursement"]
+      },
+      {
+        "id": "auto_entreprise_definition",
+        "title": "Définition auto-entreprise",
+        "content": "L'auto-entreprise est une entreprise individuelle qui relève du régime fiscal de la micro-entreprise. C'est un régime simplifié pour faciliter les démarches de création et de gestion de votre activité, tout en bénéficiant d'une protection sociale dédiée et d'autres avantages administratifs.",
+        "keywords": ["auto-entreprise", "entreprise individuelle", "micro-entreprise", "régime simplifié", "protection sociale"],
+        "category": "auto_entreprise",
+        "intent": ["definition_auto_entreprise", "what_is_auto_entreprise"]
+      },
+      {
+        "id": "auto_entreprise_pricing",
+        "title": "Tarif auto-entreprise OPTIM Finance",
+        "content": "L'auto-entreprise chez OPTIM Finance coûte 400€ de frais de gestion. Inclus : 100% avance de trésorerie, assurance RCP, gestion rigoureuse URSSAF/TVA/Impôts, outils de gestion BoondManager/Peopledoc/DocuSign/Jira, conseil et réactivité. Rémunération payée le 2 du mois suivant.",
+        "keywords": ["400 euros", "frais de gestion", "avance trésorerie", "RCP", "URSSAF", "TVA", "2 du mois"],
+        "category": "auto_entreprise",
+        "intent": ["price_auto_entreprise", "cost_auto_entreprise", "fees_auto_entreprise"]
+      },
+      {
+        "id": "auto_entreprise_benefits",
+        "title": "Avantages auto-entreprise OPTIM Finance",
+        "content": "Caractéristiques spécifiques : statut créé en 24h grâce à la procédure dématérialisée, revenus protégés (OPTIM facture et gère les impayés), avance de rémunération le 2 du mois, gestion administrative complète, assurance RCP incluse, aucun plafond de chiffre d'affaires (facturation au-delà de 77k€), gestion en ligne et mobile.",
+        "keywords": ["24h", "création rapide", "revenus protégés", "impayés", "sans plafond", "77k", "en ligne", "mobile"],
+        "category": "auto_entreprise",
+        "intent": ["benefits_auto_entreprise", "advantages_auto_entreprise", "features_auto_entreprise"]
+      },
+      {
+        "id": "societe_definition",
+        "title": "Création et gestion de société",
+        "content": "OPTIM Finance dispose d'un pôle d'expertise comptable et de commissariat aux comptes avec grande expérience. Ce pôle permet de proposer des services d'expertise comptable et de concevoir des solutions d'optimisation sur mesure. L'expert-comptable encadre l'organisation administrative et comptable, et joue le rôle de conseiller en finance, fiscalité et juridique.",
+        "keywords": ["expertise comptable", "commissariat aux comptes", "optimisation", "expert-comptable", "finance", "fiscalité", "juridique"],
+        "category": "societe",
+        "intent": ["definition_societe", "accounting_services", "expert_comptable"]
+      },
+      {
+        "id": "societe_pricing",
+        "title": "Tarif création et gestion de société",
+        "content": "La création et gestion de société chez OPTIM Finance coûte 5% de frais de gestion. Inclus : conseil et accompagnement (statuts, rémunération, investissement), gestion rigoureuse URSSAF/TVA/Impôts, outils performants Cegid et relevé électronique.",
+        "keywords": ["5%", "frais de gestion", "conseil", "statuts", "rémunération", "investissement", "Cegid"],
+        "category": "societe",
+        "intent": ["price_societe", "cost_societe", "fees_societe"]
+      },
+      {
+        "id": "societe_services",
+        "title": "Services création et gestion de société",
+        "content": "Services proposés : Création d'entreprise (conseil structure juridique, analyse business plan, accompagnement statuts à Kbis), Comptabilité et fiscalité (tenue comptable, comptes annuels, optimisation fiscale), Gestion sociale et juridique (droit du travail, fiches de paie, contrats de travail, déclarations sociales), Conseil avec suivi permanent.",
+        "keywords": ["création entreprise", "structure juridique", "business plan", "Kbis", "comptabilité", "fiscalité", "fiches de paie", "contrats travail"],
+        "category": "societe",
+        "intent": ["services_societe", "creation_entreprise", "comptabilite"]
+      },
+      {
+        "id": "comparison_solutions",
+        "title": "Comparaison des solutions financières",
+        "content": "OPTIM Finance propose 3 solutions : Portage salarial (4% de frais, statut salarié, avantages sociaux complets), Auto-entreprise (400€ de frais, charges sociales basses, simplicité), Création de société (5% de frais, optimisation fiscale, développement business). Toutes incluent : 100% avance trésorerie, assurance RCP, gestion administrative, paiement le 2 du mois.",
+        "keywords": ["3 solutions", "comparaison", "4%", "400 euros", "5%", "avance trésorerie", "RCP", "2 du mois"],
+        "category": "comparison",
+        "intent": ["compare_solutions", "which_solution", "differences", "choose_solution"]
+      },
+      {
+        "id": "missions_available",
+        "title": "Missions disponibles",
+        "content": "OPTIM Finance propose des missions IT dans différents domaines : Infrastructure (180 missions), Développement (12 missions), Data (23 missions), Management (65 missions). Total de 944 missions disponibles. Principalement des postes UI/UX Designer fulltime avec possibilité d'optimisation des revenus selon la situation.",
+        "keywords": ["missions IT", "Infrastructure", "180", "Développement", "12", "Data", "23", "Management", "65", "944 missions", "UI/UX Designer"],
+        "category": "missions",
+        "intent": ["available_missions", "job_opportunities", "sectors", "UI_UX"]
+      },
+      {
+        "id": "tools_services",
+        "title": "Outils et services techniques",
+        "content": "Outils communs : BoondManager (gestion projet/CRM), Peopledoc (gestion documentaire RH), DocuSign (signature électronique), Jira (Help Center), coffre-fort numérique, application mobile et espace personnel web. Outils spécifiques société : Cegid (comptabilité), relevé électronique. Dashboard personnalisé pour portage salarial.",
+        "keywords": ["BoondManager", "Peopledoc", "DocuSign", "Jira", "coffre-fort", "application mobile", "Cegid", "dashboard"],
+        "category": "tools",
+        "intent": ["tools", "software", "digital_services", "app"]
+      },
+      {
+        "id": "contact_support",
+        "title": "Contact et support",
+        "content": "Contact OPTIM Finance : Email contact@optim-finance.com, Téléphone +33 1 59 06 80 86. Services disponibles : simulations de revenus, documentation complète, FAQ. Processus client en 3 étapes : 1) Recherche opportunités de carrière, 2) Choix solution financière optimale, 3) Accompagnement avec documentation, formation et coaching.",
+        "keywords": ["contact@optim-finance.com", "+33 1 59 06 80 86", "simulation", "documentation", "FAQ", "3 étapes"],
+        "category": "contact",
+        "intent": ["contact_info", "phone_number", "email", "support", "process"]
+      },
+      {
+        "id": "payment_timeline",
+        "title": "Délais de paiement",
+        "content": "Pour toutes les solutions OPTIM Finance, la rémunération/salaire est payé le 2 du mois suivant la prestation. Exemple : le salaire de janvier est payé le 2 février. 100% d'avance de trésorerie disponible pour tous les statuts. Gestion des impayés prise en charge par OPTIM Finance.",
+        "keywords": ["2 du mois", "mois suivant", "janvier payé 2 février", "100% avance", "trésorerie", "impayés"],
+        "category": "payment",
+        "intent": ["payment_date", "salary_date", "when_paid", "advance"]
+      },
+      {
+        "id": "insurance_coverage",
+        "title": "Assurances et couvertures",
+        "content": "Toutes les solutions incluent l'assurance Responsabilité Civile Professionnelle (RCP). Le portage salarial ajoute : mutuelle santé AXA à 82€/mois pour vous et vos enfants, assurance chômage, retraite, prévoyance, garantie financière. Protection complète du statut salarié avec flexibilité de l'indépendant.",
+        "keywords": ["RCP", "Responsabilité Civile Professionnelle", "mutuelle AXA", "82 euros", "assurance chômage", "retraite", "prévoyance", "garantie financière"],
+        "category": "insurance",
+        "intent": ["insurance", "coverage", "RCP", "health_insurance", "unemployment"]
+      },
+      {
+        "id": "faq_auto_entreprise_pole_emploi",
+        "title": "Auto-entreprise : Procédure après inscription Pôle emploi",
+        "content": "Après votre inscription à Pôle emploi et votre rendez-vous, vous recevrez une attestation confirmant votre inscription. Vous devrez ensuite envoyer cette attestation à OPTIM Finance afin de démarrer la création de votre compte URSSAF.",
+        "keywords": ["Pôle emploi", "attestation", "inscription", "URSSAF", "compte", "procédure"],
+        "category": "auto_entreprise",
+        "intent": ["pole_emploi", "inscription_urssaf", "attestation", "procedure_auto_entreprise"]
+      },
+      {
+        "id": "faq_auto_entreprise_remuneration",
+        "title": "Auto-entreprise : Rémunération mensuelle par défaut",
+        "content": "Par défaut, la rémunération d'un auto-entrepreneur chez OPTIM Finance est de 6 400 €. Toutefois, si vous souhaitez un autre revenu, il est important de vérifier le montant réellement encaissé, ou nous demander conseil.",
+        "keywords": ["6400 euros", "rémunération", "auto-entrepreneur", "revenu", "conseil", "montant"],
+        "category": "auto_entreprise",
+        "intent": ["salary_auto_entreprise", "remuneration_default", "6400_euros", "income"]
+      },
+      {
+        "id": "faq_auto_entreprise_payment_date",
+        "title": "Auto-entreprise : Date de versement du salaire",
+        "content": "Les auto-entrepreneurs avec OPTIM Finance reçoivent les salaires le 1er ou le 2 de chaque mois.",
+        "keywords": ["1er du mois", "2 du mois", "salaire", "auto-entrepreneur", "paiement"],
+        "category": "auto_entreprise",
+        "intent": ["payment_date_auto", "when_salary_paid", "monthly_payment"]
+      },
+      {
+        "id": "faq_portage_stc_tresorerie",
+        "title": "Portage salarial : Avance de trésorerie et STC",
+        "content": "OPTIM Finance avance 100% de la trésorerie du consultant. Seule 3 000 € sont retenus jusqu'au paiement de la dernière facture du consultant. C'est une relation tripartite.",
+        "keywords": ["3000 euros", "avance trésorerie", "STC", "consultant", "dernière facture", "tripartite"],
+        "category": "portage_salarial",
+        "intent": ["tresorerie_advance", "3000_euros", "STC", "cash_flow"]
+      },
+      {
+        "id": "faq_portage_taux_impot",
+        "title": "Portage salarial : Taux d'imposition sur le bulletin de paie",
+        "content": "Un taux d'impôt estimatif est appliqué le premier mois, sans que OPTIM Finance ait la main sur ce taux. A partir du deuxième mois on récupère le taux réel, celui de www.impots.gouv.fr",
+        "keywords": ["taux impôt", "estimatif", "premier mois", "deuxième mois", "taux réel", "impots.gouv.fr"],
+        "category": "portage_salarial",
+        "intent": ["tax_rate", "bulletin_paie", "first_month", "impots_gouv"]
+      },
+      {
+        "id": "faq_portage_payment_date",
+        "title": "Portage salarial : Date de versement du salaire",
+        "content": "Les consultants OPTIM Finance en portage salarial reçoivent les salaires le 1er ou le 2 de chaque mois.",
+        "keywords": ["1er du mois", "2 du mois", "salaire", "consultant", "portage salarial"],
+        "category": "portage_salarial",
+        "intent": ["payment_date_portage", "when_salary_paid", "monthly_payment"]
+      }
+    ]
+  }
+}
