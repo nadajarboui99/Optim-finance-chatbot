@@ -10,8 +10,8 @@ from config import Config
 import traceback
 
 class OptimFinanceChatbot:
-    def __init__(self, silent_mode: bool = False):
-        self.search_engine = SearchEngine()
+    def __init__(self, silent_mode: bool = False, use_chromadb=True):
+        self.search_engine = SearchEngine(use_chromadb=use_chromadb)
         self.llm = LLMIntegration()
         self.is_initialized = False
         self.silent_mode = silent_mode

@@ -6,13 +6,19 @@ from typing import List, Dict, Any, Optional
 from sentence_transformers import SentenceTransformer
 from config import Config
 from embedding import EmbeddingManager
+from chromadb_manager import ChromaDBManager
 import faiss
 
 class SearchEngine:
-    def __init__(self):
-        self.embedding_manager = EmbeddingManager()
-        self.model = SentenceTransformer(
-         Config.EMBEDDING_MODEL )
+    def __init__(self, use_chromadb: bool = True):
+        self.use_chromadb = use_chromadb
+        
+        if use_chromadb:
+            self.chromadb_manager = ChromaDBManager()
+        else:
+            self.embedding_manager = EmbeddingManager()
+        
+        self.model = SentenceTransformer(Config.EMBEDDING_MODEL)
         
         # Patterns pour classification d'intention
         self.intent_patterns = {
@@ -26,7 +32,8 @@ class SearchEngine:
     
     def initialize(self) -> None:
         """Initialiser le moteur de recherche"""
-        self.embedding_manager.initialize()
+        if not self.use_chromadb:
+            self.embedding_manager.initialize()
     
     def classify_intent(self, query: str) -> str:
         """Classifier l'intention de la requête"""
@@ -39,10 +46,33 @@ class SearchEngine:
         return 'general'
     
     def search_semantic(self, query: str, top_k: Optional[int] = None, category_filter: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Recherche sémantique avec FAISS"""
+        """Recherche sémantique avec ChromaDB ou FAISS"""
         if top_k is None:
             top_k = Config.TOP_K_RESULTS
         
+        if self.use_chromadb:
+            return self._search_chromadb(query, top_k, category_filter)
+        else:
+            return self._search_faiss(query, top_k, category_filter)
+    
+    def _search_chromadb(self, query: str, top_k: int, category_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Recherche avec ChromaDB"""
+        try:
+            results = self.chromadb_manager.search_similar(query, top_k, category_filter)
+            
+            # Filter by similarity threshold
+            filtered_results = []
+            for result in results:
+                if result['similarity_score'] >= Config.SIMILARITY_THRESHOLD:
+                    filtered_results.append(result)
+            
+            return filtered_results
+        except Exception as e:
+            print(f"ChromaDB search error: {e}")
+            return []
+    
+    def _search_faiss(self, query: str, top_k: int, category_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Recherche avec FAISS (fallback)"""
         if self.embedding_manager.index is None:
             return []
         
@@ -54,11 +84,11 @@ class SearchEngine:
         faiss.normalize_L2(query_embedding)
         
         # Recherche dans l'index FAISS
-        scores, indices = self.embedding_manager.index.search(query_embedding, top_k * 2)  # Prendre plus pour filtrer
+        scores, indices = self.embedding_manager.index.search(query_embedding, top_k * 2)
         
         results = []
         for score, idx in zip(scores[0], indices[0]):
-            if idx == -1:  # Index invalide
+            if idx == -1:
                 continue
                 
             chunk = self.embedding_manager.chunks[idx]
@@ -78,20 +108,28 @@ class SearchEngine:
         return results[:top_k]
     
     def search_by_keywords(self, query: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Recherche par mots-clés dans les keywords et le contenu"""
+        """Recherche par mots-clés"""
         if top_k is None:
             top_k = Config.TOP_K_RESULTS
         
         query_words = set(query.lower().split())
         results = []
         
-        for chunk in self.embedding_manager.chunks:
+        # Get chunks based on storage type
+        if self.use_chromadb:
+            # For ChromaDB, we need to get all chunks first (not optimal for large datasets)
+            all_results = self.chromadb_manager.search_similar(query, top_k * 3)
+            chunks = all_results
+        else:
+            chunks = self.embedding_manager.chunks
+        
+        for chunk in chunks:
             score = 0
             
             # Score basé sur les keywords
             chunk_keywords = [kw.lower() for kw in chunk['keywords']]
             keyword_matches = len(query_words.intersection(set(chunk_keywords)))
-            score += keyword_matches * 2  # Poids plus fort pour les keywords
+            score += keyword_matches * 2
             
             # Score basé sur le contenu
             content_words = set(chunk['content'].lower().split())
@@ -113,9 +151,7 @@ class SearchEngine:
             top_k = Config.TOP_K_RESULTS
         
         # Recherches séparées
-       # In hybrid_search()
-       # Reduce the multiplier (2x is too aggressive)
-        semantic_results = self.search_semantic(query, top_k + 3)  # Just slightly more
+        semantic_results = self.search_semantic(query, top_k + 3)
         keyword_results = self.search_by_keywords(query, top_k + 3)
         
         # Combiner les résultats
