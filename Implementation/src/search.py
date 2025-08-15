@@ -5,19 +5,11 @@ import numpy as np
 from typing import List, Dict, Any, Optional
 from sentence_transformers import SentenceTransformer
 from config import Config
-from embedding import EmbeddingManager
-from chromadb_manager import ChromaDBManager
-import faiss
+from admin.chromadb_manager import ChromaDBManager
 
 class SearchEngine:
-    def __init__(self, use_chromadb: bool = True):
-        self.use_chromadb = use_chromadb
-        
-        if use_chromadb:
-            self.chromadb_manager = ChromaDBManager()
-        else:
-            self.embedding_manager = EmbeddingManager()
-        
+    def __init__(self):
+        self.chromadb_manager = ChromaDBManager()
         self.model = SentenceTransformer(Config.EMBEDDING_MODEL)
         
         # Patterns pour classification d'intention
@@ -32,8 +24,8 @@ class SearchEngine:
     
     def initialize(self) -> None:
         """Initialiser le moteur de recherche"""
-        if not self.use_chromadb:
-            self.embedding_manager.initialize()
+        # ChromaDB doesn't need explicit initialization like FAISS
+        print("SearchEngine initialized with ChromaDB")
     
     def classify_intent(self, query: str) -> str:
         """Classifier l'intention de la requête"""
@@ -46,17 +38,10 @@ class SearchEngine:
         return 'general'
     
     def search_semantic(self, query: str, top_k: Optional[int] = None, category_filter: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Recherche sémantique avec ChromaDB ou FAISS"""
+        """Recherche sémantique avec ChromaDB"""
         if top_k is None:
             top_k = Config.TOP_K_RESULTS
         
-        if self.use_chromadb:
-            return self._search_chromadb(query, top_k, category_filter)
-        else:
-            return self._search_faiss(query, top_k, category_filter)
-    
-    def _search_chromadb(self, query: str, top_k: int, category_filter: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Recherche avec ChromaDB"""
         try:
             results = self.chromadb_manager.search_similar(query, top_k, category_filter)
             
@@ -71,42 +56,6 @@ class SearchEngine:
             print(f"ChromaDB search error: {e}")
             return []
     
-    def _search_faiss(self, query: str, top_k: int, category_filter: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Recherche avec FAISS (fallback)"""
-        if self.embedding_manager.index is None:
-            return []
-        
-        # Encoder la requête
-        query_embedding = self.model.encode([query])
-        query_embedding = query_embedding.astype('float32')
-        
-        # Normaliser pour similarité cosinus
-        faiss.normalize_L2(query_embedding)
-        
-        # Recherche dans l'index FAISS
-        scores, indices = self.embedding_manager.index.search(query_embedding, top_k * 2)
-        
-        results = []
-        for score, idx in zip(scores[0], indices[0]):
-            if idx == -1:
-                continue
-                
-            chunk = self.embedding_manager.chunks[idx]
-            
-            # Filtrer par catégorie si spécifié
-            if category_filter and chunk['category'] != category_filter:
-                continue
-            
-            # Filtrer par seuil de similarité
-            if score < Config.SIMILARITY_THRESHOLD:
-                continue
-            
-            chunk_copy = chunk.copy()
-            chunk_copy['similarity_score'] = float(score)
-            results.append(chunk_copy)
-        
-        return results[:top_k]
-    
     def search_by_keywords(self, query: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
         """Recherche par mots-clés"""
         if top_k is None:
@@ -115,15 +64,10 @@ class SearchEngine:
         query_words = set(query.lower().split())
         results = []
         
-        # Get chunks based on storage type
-        if self.use_chromadb:
-            # For ChromaDB, we need to get all chunks first (not optimal for large datasets)
-            all_results = self.chromadb_manager.search_similar(query, top_k * 3)
-            chunks = all_results
-        else:
-            chunks = self.embedding_manager.chunks
+        # Get a broader set of results from ChromaDB to analyze keywords
+        all_results = self.chromadb_manager.search_similar(query, top_k * 3)
         
-        for chunk in chunks:
+        for chunk in all_results:
             score = 0
             
             # Score basé sur les keywords

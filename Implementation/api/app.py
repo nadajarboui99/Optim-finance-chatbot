@@ -5,6 +5,8 @@ from typing import Optional, List
 import uvicorn
 import sys
 import os
+import threading
+import time
 
 # Ajouter le dossier src au path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -44,10 +46,22 @@ app.add_middleware(
 # Initialiser le chatbot
 chatbot = OptimFinanceChatbot()
 
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Initialiser le chatbot au démarrage"""
+    """Initialiser le chatbot et démarrer l'API d'administration au démarrage"""
+    print("Initialisation du chatbot OPTIM Finance...")
     chatbot.initialize()
+    
+    # Démarrer l'API d'administration dans un thread séparé
+    '''admin_thread = threading.Thread(target=start_admin_api, daemon=True)
+    admin_thread.start()
+    
+    # Attendre un peu pour laisser le temps au thread admin de démarrer
+    time.sleep(2)'''
+    print("✅ Chatbot initialisé avec succès!")
+    
 
 @app.get("/")
 async def root():
@@ -66,6 +80,24 @@ async def health_check():
         "initialized": chatbot.is_initialized
     }
 
+@app.get("/admin-health")
+async def admin_health_check():
+    """Vérifier le statut de l'API d'administration"""
+    try:
+        import requests
+        response = requests.get("http://localhost:8001/health", timeout=3)
+        return {
+            "admin_status": "running",
+            "admin_port": 8001,
+            "admin_response": response.json()
+        }
+    except Exception as e:
+        return {
+            "admin_status": "not_running",
+            "admin_port": 8001,
+            "error": str(e)
+        }
+
 @app.post("/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest):
     """Traiter une requête utilisateur"""
@@ -83,21 +115,25 @@ async def process_query(request: QueryRequest):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.post("/chat")
+async def chat_endpoint(request: QueryRequest):
+    """Chat endpoint for frontend compatibility"""
+    return await process_query(request)
 
+@app.options("/chat")
+async def chat_options():
+    """Handle preflight OPTIONS request for /chat"""
+    return {"message": "OK"}
+
+@app.options("/query") 
+async def query_options():
+    """Handle preflight OPTIONS request for /query"""
+    return {"message": "OK"}
 @app.get("/suggestions")
 async def get_suggestions(q: Optional[str] = ""):
     """Obtenir des suggestions de questions"""
     suggestions = chatbot.get_suggestions(q or "")
     return {"suggestions": suggestions}
-
-@app.get("/stats")
-async def get_stats():
-    """Statistiques du chatbot"""
-    return {
-        "total_chunks": len(chatbot.search_engine.embedding_manager.chunks),
-        "categories": list(set(chunk['category'] for chunk in chatbot.search_engine.embedding_manager.chunks)) if chatbot.search_engine.embedding_manager.chunks else [],
-        "intents": list(chatbot.search_engine.intent_patterns.keys())
-    }
 
 if __name__ == "__main__":
     uvicorn.run(

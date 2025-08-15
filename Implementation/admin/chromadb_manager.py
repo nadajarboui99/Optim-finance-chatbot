@@ -2,6 +2,7 @@ import chromadb
 import uuid
 import json
 import os
+import shutil
 from typing import List, Dict, Any, Optional
 from sentence_transformers import SentenceTransformer
 import numpy as np
@@ -11,14 +12,46 @@ class ChromaDBManager:
     def __init__(self):
         self.model = SentenceTransformer(Config.EMBEDDING_MODEL)
         
-        # Initialize ChromaDB client
-        self.client = chromadb.PersistentClient(path=Config.CHROMADB_PATH)
-        
-        # Get or create collection
+        # Initialize ChromaDB client with error handling
+        try:
+            self.client = chromadb.PersistentClient(path=Config.CHROMADB_PATH)
+            # Try to get or create collection
+            self._initialize_collection()
+        except Exception as e:
+            print(f"Error initializing ChromaDB: {e}")
+            print("Attempting to recover by clearing corrupted database...")
+            self._recover_database()
+    
+    def _initialize_collection(self):
+        """Initialize the collection"""
         self.collection = self.client.get_or_create_collection(
             name=Config.CHROMADB_COLLECTION_NAME,
             metadata={"hnsw:space": "cosine"}  # Use cosine similarity
         )
+    
+    def _recover_database(self):
+        """Recover from corrupted database by clearing and recreating"""
+        try:
+            # Close any existing client connections
+            if hasattr(self, 'client'):
+                del self.client
+            
+            # Remove the corrupted database directory
+            if os.path.exists(Config.CHROMADB_PATH):
+                print(f"Removing corrupted database at: {Config.CHROMADB_PATH}")
+                shutil.rmtree(Config.CHROMADB_PATH)
+            
+            # Recreate the directory
+            os.makedirs(Config.CHROMADB_PATH, exist_ok=True)
+            
+            # Initialize new client and collection
+            self.client = chromadb.PersistentClient(path=Config.CHROMADB_PATH)
+            self._initialize_collection()
+            print("✓ ChromaDB recovered successfully")
+            
+        except Exception as e:
+            print(f"Failed to recover ChromaDB: {e}")
+            raise e
     
     def add_chunks(self, chunks: List[Dict[str, Any]]) -> bool:
         """Add chunks to ChromaDB"""
@@ -176,4 +209,14 @@ class ChromaDBManager:
             return True
         except Exception as e:
             print(f"Error clearing collection: {e}")
+            return False
+    
+    def force_reset_database(self) -> bool:
+        """Force reset the entire database - use with caution"""
+        try:
+            print("⚠️  Force resetting ChromaDB database...")
+            self._recover_database()
+            return True
+        except Exception as e:
+            print(f"Failed to force reset database: {e}")
             return False

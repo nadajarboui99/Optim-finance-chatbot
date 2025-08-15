@@ -10,8 +10,9 @@ from config import Config
 import traceback
 
 class OptimFinanceChatbot:
-    def __init__(self, silent_mode: bool = False, use_chromadb=True):
-        self.search_engine = SearchEngine(use_chromadb=use_chromadb)
+    def __init__(self, silent_mode: bool = False):
+        """Initialize chatbot with ChromaDB only"""
+        self.search_engine = SearchEngine()
         self.llm = LLMIntegration()
         self.is_initialized = False
         self.silent_mode = silent_mode
@@ -25,7 +26,7 @@ class OptimFinanceChatbot:
         """Initialiser le chatbot"""
         self._print("Initialisation du chatbot OPTIM Finance...")
         try:
-            # Initialiser le moteur de recherche
+            # Initialiser le moteur de recherche (ChromaDB)
             self.search_engine.initialize()
             
             # Tester la connexion LLM
@@ -55,7 +56,7 @@ class OptimFinanceChatbot:
             self._print(f"🔍 TRAITEMENT DE LA REQUÊTE: '{user_query}'")
             self._print(f"{'='*50}")
             
-            # 1. Recherche dans la base de connaissances
+            # 1. Recherche dans la base de connaissances (ChromaDB)
             self._print("📚 Étape 1: Recherche dans la base de connaissances...")
             search_results = self.search_engine.search(
                 query=user_query,
@@ -69,7 +70,7 @@ class OptimFinanceChatbot:
             
             # 2. Vérifier si on a des résultats pertinents
             if not search_results['results']:
-                self._print("⚠️ Aucun résultat pertinent trouvé")
+                self._print(" Aucun résultat pertinent trouvé")
                 return {
                     'query': user_query,
                     'response': f"Je n'ai pas trouvé d'informations spécifiques sur votre question. Pour une réponse personnalisée, contactez notre équipe à {Config.CONTACT_EMAIL} ou au {Config.CONTACT_PHONE}.",
@@ -82,7 +83,7 @@ class OptimFinanceChatbot:
             
             # Debug: afficher les premiers résultats
             if not self.silent_mode:
-                self._print(f"🔍 Aperçu des résultats:")
+                self._print(f" Aperçu des résultats:")
                 for i, result in enumerate(search_results['results'][:2]):
                     score = result.get('final_score', result.get('similarity_score', result.get('keyword_score', 0)))
                     self._print(f"  Résultat {i+1} - Score: {score:.3f}")
@@ -90,7 +91,7 @@ class OptimFinanceChatbot:
                     self._print(f"  Contenu (preview): {str(result.get('content', ''))[:100]}...")
             
             # 3. Génération de la réponse avec LLM
-            self._print("🤖 Étape 2: Génération de la réponse avec LLM...")
+            self._print(" Étape 2: Génération de la réponse avec LLM...")
             llm_response = self.llm.generate_response(
                 user_query=user_query,
                 retrieved_chunks=search_results['results'],
@@ -99,7 +100,7 @@ class OptimFinanceChatbot:
             
             # Vérifier si la génération LLM a réussi
             if not llm_response.get('success', True):
-                self._print(f"❌ Erreur LLM: {llm_response.get('error', 'Erreur inconnue')}")
+                self._print(f" Erreur LLM: {llm_response.get('error', 'Erreur inconnue')}")
                 return {
                     'query': user_query,
                     'response': llm_response['response'],  # Message d'erreur déjà formaté
@@ -114,9 +115,9 @@ class OptimFinanceChatbot:
             # 4. Évaluer la confiance basée sur les scores
             confidence = self._evaluate_confidence(search_results['results'])
             
-            self._print("✅ Réponse générée avec succès!")
+            self._print(" Réponse générée avec succès!")
             if not self.silent_mode:
-                self._print(f"📈 Statistiques finales:")
+                self._print(f" Statistiques finales:")
                 self._print(f"  - Confiance: {confidence}")
                 self._print(f"  - Sources utilisées: {len(search_results['results'])}")
                 self._print(f"  - Longueur de la réponse: {len(llm_response['response'])} caractères")
@@ -134,10 +135,10 @@ class OptimFinanceChatbot:
             
         except Exception as e:
             error_msg = f"Erreur lors du traitement: {str(e)}"
-            self._print(f"❌ {error_msg}")
-            self._print(f"🔧 Type d'erreur: {type(e).__name__}")
+            self._print(f" {error_msg}")
+            self._print(f" Type d'erreur: {type(e).__name__}")
             if not self.silent_mode:
-                self._print(f"📋 Stack trace:")
+                self._print(f" Stack trace:")
                 traceback.print_exc()
             
             return {
@@ -177,7 +178,7 @@ class OptimFinanceChatbot:
                 return 'low'
                 
         except Exception as e:
-            self._print(f"⚠️ Erreur lors de l'évaluation de confiance: {e}")
+            self._print(f" Erreur lors de l'évaluation de confiance: {e}")
             return 'low'
     
     def get_suggestions(self, partial_query: str) -> List[str]:
@@ -207,7 +208,7 @@ class OptimFinanceChatbot:
         """Obtenir le statut du chatbot"""
         return {
             'initialized': self.is_initialized,
-            'search_engine_ready': hasattr(self.search_engine, 'vectorstore') if hasattr(self, 'search_engine') else False,
+            'database': 'ChromaDB',
             'llm_ready': self.llm.test_connection() if hasattr(self, 'llm') else False
         }
 
@@ -221,10 +222,10 @@ def main():
         chatbot.initialize()
         
         print(f"\n{'='*60}")
-        print("🤖 Assistant OPTIM Finance - PRÊT")
-        print("💡 Tapez 'quit', 'exit' ou 'q' pour quitter")
-        print("📊 Tapez 'status' pour voir l'état du système")
-        print("❓ Tapez 'help' pour voir les suggestions")
+        print(" Assistant OPTIM Finance - PRÊT")
+        print(" Tapez 'quit', 'exit' ou 'q' pour quitter")
+        print(" Tapez 'status' pour voir l'état du système")
+        print(" Tapez 'help' pour voir les suggestions")
         print(f"{'='*60}")
         
         while True:
@@ -251,30 +252,30 @@ def main():
                     continue
                 
                 if not user_input:
-                    print("⚠️ Veuillez poser une question.")
+                    print(" Veuillez poser une question.")
                     continue
                 
                 # Traitement de la requête
                 response = chatbot.process_query(user_input)
                 
                 # Affichage de la réponse
-                print(f"\n💬 Réponse: {response['response']}")
-                print(f"🎯 Intention détectée: {response['intent']}")
-                print(f"📊 Confiance: {response['confidence']}")
-                print(f"📚 Sources utilisées: {response.get('num_sources', 0)}")
+                print(f"\n Réponse: {response['response']}")
+                print(f" Intention détectée: {response['intent']}")
+                print(f" Confiance: {response['confidence']}")
+                print(f" Sources utilisées: {response.get('num_sources', 0)}")
                 
                 if response.get('error'):
-                    print(f"⚠️ Erreur technique: {response['error']}")
+                    print(f" Erreur technique: {response['error']}")
                 
             except KeyboardInterrupt:
-                print("\n⛔ Arrêt demandé par l'utilisateur.")
+                print("\n Arrêt demandé par l'utilisateur.")
                 break
             except Exception as e:
-                print(f"\n❌ Erreur inattendue: {e}")
+                print(f"\n Erreur inattendue: {e}")
                 traceback.print_exc()
                 
     except Exception as e:
-        print(f"💥 Erreur critique lors du démarrage: {e}")
+        print(f" Erreur critique lors du démarrage: {e}")
         traceback.print_exc()
 
 class NullWriter:

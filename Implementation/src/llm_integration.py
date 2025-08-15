@@ -2,7 +2,8 @@ import os
 # Résoudre le problème des tokenizers Hugging Face
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import sys
-from mistralai import Mistral
+# Updated import for newer mistralai package
+from mistralai.client import MistralClient
 from typing import List, Dict, Any, Optional
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import Config
@@ -24,8 +25,8 @@ class LLMIntegration:
             
             self.api_key = Config.MISTRAL_API_KEY
             
-            # Initialiser le client Mistral
-            self.client = Mistral(api_key=self.api_key)
+            # Initialiser le client Mistral avec la nouvelle API
+            self.client = MistralClient(api_key=self.api_key)
             
             print(f"LLM initialisé avec Mistral API, modèle: {self.model}")
             
@@ -133,13 +134,12 @@ RÉPONSE :"""
             print("Appel à l'API Mistral...")
             
             # Appel à l'API Mistral avec paramètres optimisés pour la vitesse
-            response = self.client.chat.complete(
+            response = self.client.chat(
                 model=self.model,
                 messages=messages,
                 max_tokens=400,  # Réduit pour une réponse plus rapide
                 temperature=0.3,  # Plus bas pour une génération plus rapide et déterministe
                 top_p=0.95,       # Nucleus sampling pour la vitesse
-
             )
             
             print("Réponse reçue de Mistral API")
@@ -226,7 +226,7 @@ RÉPONSE :"""
                 {"role": "user", "content": "Test de connexion"}
             ]
             
-            response = self.client.chat.complete(
+            response = self.client.chat(
                 model=self.model,
                 messages=test_messages,
                 max_tokens=5

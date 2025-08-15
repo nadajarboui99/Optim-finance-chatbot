@@ -1,0 +1,74 @@
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: chatbot-backend
+    environment:
+      - NODE_ENV=production
+      - PYTHONPATH=/app/python
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - CHROMADB_PATH=/app/python/data/chromadb
+      - USE_CHROMADB=true
+      - ANONYMIZED_TELEMETRY=false
+    volumes:
+      - chromadb_data:/app/python/data/chromadb
+      - uploads_data:/app/python/data/uploads
+      - ./Implementation:/app/python
+      - ./chat-widget/back-end:/app/nodejs
+    ports:
+      - "3000:3000"  # Node.js
+      - "8000:8000"  # Python FastAPI
+      - "8001:8001"  # Admin Interface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: chatbot-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+        reservations:
+          memory: 64M
+          cpus: '0.05'
+
+volumes:
+  chromadb_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge

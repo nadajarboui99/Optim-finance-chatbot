@@ -1,27 +1,15 @@
-#!/usr/bin/env python3
-"""
-Optimized persistent chatbot for OPTIM Finance
-Keeps the chatbot initialized and processes requests via stdin/stdout for maximum speed
-"""
-
 import os
 import sys
 import json
 import time
 import traceback
-from io import StringIO
-
+from typing import Dict, Any  # Add this import
 # Résoudre le problème des tokenizers Hugging Face
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Rediriger les warnings et logs non critiques
 import warnings
 warnings.filterwarnings("ignore")
-
-from typing import Dict, Any, List, Optional
-from search import SearchEngine
-from llm_integration import LLMIntegration
-from config import Config
 
 class NullWriter:
     """Classe pour rediriger stdout/stderr vers nulle part"""
@@ -38,9 +26,35 @@ class PersistentOptimFinanceChatbot:
         self.original_stdout = sys.stdout
         self.original_stderr = sys.stderr
         
+    def check_environment(self) -> bool:
+        """Check if all required environment variables are set"""
+        try:
+            from config import Config
+            
+            # Check MISTRAL_API_KEY
+            if not hasattr(Config, 'MISTRAL_API_KEY') or not Config.MISTRAL_API_KEY:
+                sys.stderr.write("ERROR: MISTRAL_API_KEY not found or empty\n")
+                sys.stderr.write("Please set your Mistral API key in the .env file\n")
+                return False
+            
+            if len(Config.MISTRAL_API_KEY.strip()) < 10:  # Basic validation
+                sys.stderr.write("ERROR: MISTRAL_API_KEY appears to be invalid (too short)\n")
+                return False
+            
+            sys.stderr.write("✓ MISTRAL_API_KEY found and appears valid\n")
+            return True
+            
+        except Exception as e:
+            sys.stderr.write(f"ERROR checking environment: {e}\n")
+            return False
+        
     def initialize(self):
         """Initialiser le chatbot UNE SEULE FOIS au démarrage"""
         try:
+            # First check environment
+            if not self.check_environment():
+                return False
+            
             # Rediriger les sorties pendant l'initialisation
             sys.stdout = NullWriter()
             sys.stderr = NullWriter()
@@ -72,7 +86,21 @@ class PersistentOptimFinanceChatbot:
             sys.stdout = self.original_stdout
             sys.stderr = self.original_stderr
             
-            sys.stderr.write(f"Initialization error: {str(e)}\n")
+            error_msg = str(e)
+            if "'_type'" in error_msg:
+                sys.stderr.write("ChromaDB database corruption detected - attempting reset...\n")
+                try:
+                    # Try to reset ChromaDB and reinitialize
+                    from config import Config
+                    import shutil
+                    if os.path.exists(Config.CHROMADB_PATH):
+                        shutil.rmtree(Config.CHROMADB_PATH)
+                        os.makedirs(Config.CHROMADB_PATH, exist_ok=True)
+                    sys.stderr.write("ChromaDB reset completed - please restart the service\n")
+                except:
+                    pass
+            
+            sys.stderr.write(f"Initialization error: {error_msg}\n")
             sys.stderr.flush()
             return False
     
@@ -94,7 +122,7 @@ class PersistentOptimFinanceChatbot:
             # Utiliser votre méthode process_query existante
             response = self.chatbot.process_query(
                 user_query=message,
-                search_type="hybrid",  # Vous pouvez ajuster selon vos besoins
+                search_type="hybrid",
                 top_k=None
             )
             
@@ -131,7 +159,7 @@ class PersistentOptimFinanceChatbot:
             return {
                 "success": False,
                 "error": error_msg,
-                "response": f"Désolé, une erreur est survenue. Veuillez contacter notre équipe à {Config.CONTACT_EMAIL if 'Config' in globals() else 'contact@optim-finance.com'}",
+                "response": "Désolé, une erreur est survenue. Veuillez contacter notre équipe à contact@optim-finance.com",
                 "processing_time": time.time() - start_time if 'start_time' in locals() else 0
             }
     
@@ -233,6 +261,12 @@ if __name__ == "__main__":
     else:
         # Mode unique - compatibilité avec votre code existant
         question = sys.argv[1]
+        
+        # Check environment first
+        from config import Config
+        if not Config.MISTRAL_API_KEY:
+            print("Erreur: MISTRAL_API_KEY manquante. Veuillez configurer votre clé API.")
+            sys.exit(1)
         
         # Importer votre classe originale
         from chatbot import OptimFinanceChatbot

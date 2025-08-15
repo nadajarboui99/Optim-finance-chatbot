@@ -26,9 +26,10 @@ class FileProcessor:
         return ext in self.supported_formats
     
     def process_file(self, file_path: str, filename: str, category: str = "general", 
-                    intent: str = "general", chunk_size: int = 1000, 
-                    overlap: int = 100) -> List[Dict[str, Any]]:
-        """Process a file and return chunks"""
+                    intent: str = "general", target_chunk_size: int = 1000, 
+                    max_chunk_size: int = 1500, min_chunk_size: int = 200,
+                    overlap_sentences: int = 2) -> List[Dict[str, Any]]:
+        """Process a file and return semantically coherent chunks"""
         
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -43,14 +44,230 @@ class FileProcessor:
         if not text_content.strip():
             raise ValueError("No text content extracted from file")
         
-        # Create chunks
-        chunks = self._create_chunks(
+        # Create semantically aware chunks
+        chunks = self._create_semantic_chunks(
             text_content, filename, category, intent, 
-            chunk_size, overlap, ext
+            target_chunk_size, max_chunk_size, min_chunk_size, 
+            overlap_sentences, ext
         )
         
         return chunks
     
+    def _create_semantic_chunks(self, text: str, filename: str, category: str, 
+                               intent: str, target_chunk_size: int, max_chunk_size: int,
+                               min_chunk_size: int, overlap_sentences: int, 
+                               file_type: str) -> List[Dict[str, Any]]:
+        """Create semantically coherent chunks with flexible sizing"""
+        
+        # First, split by paragraphs (stronger semantic boundaries)
+        paragraphs = self._split_paragraphs(text)
+        
+        chunks = []
+        current_chunk_paragraphs = []
+        current_chunk_size = 0
+        chunk_index = 0
+        
+        for paragraph in paragraphs:
+            paragraph_size = len(paragraph['text'])
+            
+            # If single paragraph exceeds max_chunk_size, split it by sentences
+            if paragraph_size > max_chunk_size:
+                # Process accumulated paragraphs first
+                if current_chunk_paragraphs:
+                    chunk = self._create_chunk_from_paragraphs(
+                        current_chunk_paragraphs, filename, category, 
+                        intent, chunk_index, file_type
+                    )
+                    chunks.append(chunk)
+                    chunk_index += 1
+                    current_chunk_paragraphs = []
+                    current_chunk_size = 0
+                
+                # Split large paragraph by sentences
+                large_para_chunks = self._split_large_paragraph(
+                    paragraph, filename, category, intent, 
+                    chunk_index, file_type, target_chunk_size, max_chunk_size
+                )
+                chunks.extend(large_para_chunks)
+                chunk_index += len(large_para_chunks)
+                continue
+            
+            # Check if adding this paragraph would exceed target size
+            if (current_chunk_size + paragraph_size > target_chunk_size and 
+                current_chunk_paragraphs and 
+                current_chunk_size >= min_chunk_size):
+                
+                # Create chunk from accumulated paragraphs
+                chunk = self._create_chunk_from_paragraphs(
+                    current_chunk_paragraphs, filename, category, 
+                    intent, chunk_index, file_type
+                )
+                chunks.append(chunk)
+                
+                # Start new chunk with overlap
+                overlap_paras = self._get_overlap_paragraphs(
+                    current_chunk_paragraphs, overlap_sentences
+                )
+                current_chunk_paragraphs = overlap_paras + [paragraph]
+                current_chunk_size = sum(len(p['text']) for p in current_chunk_paragraphs)
+                chunk_index += 1
+            else:
+                # Add paragraph to current chunk
+                current_chunk_paragraphs.append(paragraph)
+                current_chunk_size += paragraph_size
+        
+        # Create final chunk if there's remaining content
+        if current_chunk_paragraphs:
+            chunk = self._create_chunk_from_paragraphs(
+                current_chunk_paragraphs, filename, category, 
+                intent, chunk_index, file_type
+            )
+            chunks.append(chunk)
+        
+        return chunks
+    
+    def _split_paragraphs(self, text: str) -> List[Dict[str, Any]]:
+        """Split text into paragraphs with metadata"""
+        # Split by double newlines or single newlines followed by significant whitespace
+        paragraph_pattern = r'\n\s*\n|\n(?=\s{4,}|\t)'
+        raw_paragraphs = re.split(paragraph_pattern, text)
+        
+        paragraphs = []
+        for i, para_text in enumerate(raw_paragraphs):
+            cleaned_text = para_text.strip()
+            if cleaned_text:
+                sentences = self._split_sentences(cleaned_text)
+                paragraphs.append({
+                    'text': cleaned_text,
+                    'sentences': sentences,
+                    'index': i,
+                    'is_header': self._is_likely_header(cleaned_text),
+                    'is_list_item': self._is_list_item(cleaned_text)
+                })
+        
+        return paragraphs
+    
+    def _split_sentences(self, text: str) -> List[str]:
+        """Split text into sentences more intelligently"""
+        # Handle common abbreviations
+        text = re.sub(r'\b(Mr|Mrs|Dr|Prof|Sr|Jr|vs|etc|Inc|Ltd|Corp)\.\s+', r'\1<PERIOD> ', text)
+        
+        # Split on sentence endings
+        sentences = re.split(r'[.!?]+\s+', text)
+        
+        # Restore periods in abbreviations and clean up
+        sentences = [re.sub(r'<PERIOD>', '.', s.strip()) for s in sentences if s.strip()]
+        
+        return sentences
+    
+    def _is_likely_header(self, text: str) -> bool:
+        """Detect if text is likely a header/title"""
+        return (
+            len(text) < 100 and 
+            (text.isupper() or 
+             re.match(r'^\d+\.?\s+[A-Z]', text) or  # Numbered headers
+             re.match(r'^[A-Z][^.!?]*$', text))  # Title case without sentence punctuation
+        )
+    
+    def _is_list_item(self, text: str) -> bool:
+        """Detect if text is a list item"""
+        return bool(re.match(r'^\s*[-•*]\s+|^\s*\d+[\.)]\s+|^\s*[a-zA-Z][\.)]\s+', text))
+    
+    def _split_large_paragraph(self, paragraph: Dict[str, Any], filename: str, 
+                              category: str, intent: str, chunk_index: int, 
+                              file_type: str, target_size: int, max_size: int) -> List[Dict[str, Any]]:
+        """Split a large paragraph by sentences while maintaining context"""
+        sentences = paragraph['sentences']
+        chunks = []
+        current_sentences = []
+        current_size = 0
+        local_chunk_index = 0
+        
+        for sentence in sentences:
+            sentence_size = len(sentence)
+            
+            if (current_size + sentence_size > target_size and 
+                current_sentences and 
+                current_size > 200):  # Minimum chunk size
+                
+                # Create chunk
+                chunk_text = ' '.join(current_sentences)
+                chunk = self._create_chunk_dict(
+                    chunk_text, filename, category, intent, 
+                    chunk_index + local_chunk_index, file_type
+                )
+                chunks.append(chunk)
+                
+                # Start new chunk with last sentence as context
+                current_sentences = [current_sentences[-1], sentence] if current_sentences else [sentence]
+                current_size = len(' '.join(current_sentences))
+                local_chunk_index += 1
+            else:
+                current_sentences.append(sentence)
+                current_size += sentence_size
+        
+        # Add final chunk
+        if current_sentences:
+            chunk_text = ' '.join(current_sentences)
+            chunk = self._create_chunk_dict(
+                chunk_text, filename, category, intent, 
+                chunk_index + local_chunk_index, file_type
+            )
+            chunks.append(chunk)
+        
+        return chunks
+    
+    def _get_overlap_paragraphs(self, paragraphs: List[Dict[str, Any]], 
+                               overlap_sentences: int) -> List[Dict[str, Any]]:
+        """Get overlap paragraphs for context continuity"""
+        if not paragraphs or overlap_sentences <= 0:
+            return []
+        
+        # Take last paragraph if it's small, or last few sentences from last paragraph
+        last_para = paragraphs[-1]
+        last_sentences = last_para['sentences']
+        
+        if len(last_sentences) <= overlap_sentences:
+            return [last_para]
+        else:
+            # Create a new paragraph with the last few sentences
+            overlap_sentences_list = last_sentences[-overlap_sentences:]
+            overlap_text = ' '.join(overlap_sentences_list)
+            return [{
+                'text': overlap_text,
+                'sentences': overlap_sentences_list,
+                'index': last_para['index'],
+                'is_header': False,
+                'is_list_item': last_para['is_list_item']
+            }]
+    
+    def _create_chunk_from_paragraphs(self, paragraphs: List[Dict[str, Any]], 
+                                    filename: str, category: str, intent: str, 
+                                    chunk_index: int, file_type: str) -> Dict[str, Any]:
+        """Create a chunk from multiple paragraphs"""
+        
+        # Combine paragraph texts
+        combined_text = '\n\n'.join([p['text'] for p in paragraphs])
+        
+        # Enhanced metadata
+        has_headers = any(p['is_header'] for p in paragraphs)
+        has_lists = any(p['is_list_item'] for p in paragraphs)
+        
+        # Create base chunk
+        chunk = self._create_chunk_dict(
+            combined_text, filename, category, intent, 
+            chunk_index, file_type
+        )
+        
+        # Add semantic metadata
+        chunk['has_headers'] = has_headers
+        chunk['has_lists'] = has_lists
+        chunk['paragraph_count'] = len(paragraphs)
+        chunk['sentence_count'] = sum(len(p['sentences']) for p in paragraphs)
+        
+        return chunk
+
+    # Keep all the existing processing methods unchanged
     def _process_pdf(self, file_path: str) -> str:
         """Extract text from PDF"""
         try:
@@ -162,49 +379,9 @@ class FileProcessor:
         text = re.sub(r'[^\w\s\.,!?;:()\-€$%]', '', text)
         return text.strip()
     
-    def _create_chunks(self, text: str, filename: str, category: str, 
-                      intent: str, chunk_size: int, overlap: int, 
-                      file_type: str) -> List[Dict[str, Any]]:
-        """Create overlapping chunks from text"""
-        
-        # Split into sentences for better chunking
-        sentences = re.split(r'[.!?]+', text)
-        sentences = [s.strip() for s in sentences if s.strip()]
-        
-        chunks = []
-        current_chunk = ""
-        chunk_index = 0
-        
-        for sentence in sentences:
-            # Check if adding this sentence would exceed chunk size
-            if len(current_chunk + " " + sentence) > chunk_size and current_chunk:
-                # Create chunk
-                chunk = self._create_chunk_dict(
-                    current_chunk.strip(), filename, category, 
-                    intent, chunk_index, file_type
-                )
-                chunks.append(chunk)
-                
-                # Start new chunk with overlap
-                overlap_text = current_chunk[-overlap:] if len(current_chunk) > overlap else current_chunk
-                current_chunk = overlap_text + " " + sentence
-                chunk_index += 1
-            else:
-                current_chunk += " " + sentence if current_chunk else sentence
-        
-        # Add the last chunk
-        if current_chunk.strip():
-            chunk = self._create_chunk_dict(
-                current_chunk.strip(), filename, category, 
-                intent, chunk_index, file_type
-            )
-            chunks.append(chunk)
-        
-        return chunks
-    
     def _create_chunk_dict(self, content: str, filename: str, category: str, 
                           intent: str, chunk_index: int, file_type: str) -> Dict[str, Any]:
-        """Create a chunk dictionary"""
+        """Create a chunk dictionary with enhanced metadata"""
         
         # Generate keywords from content
         keywords = self._extract_keywords(content)
@@ -222,8 +399,26 @@ class FileProcessor:
             'filename': filename,
             'file_type': file_type.replace('.', ''),
             'chunk_index': chunk_index,
-            'length': len(content)
+            'length': len(content),
+            'word_count': len(content.split()),
+            'readability_score': self._calculate_readability(content)
         }
+    
+    def _calculate_readability(self, text: str) -> float:
+        """Simple readability score based on sentence and word length"""
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s.strip() for s in sentences if s.strip()]
+        
+        if not sentences:
+            return 0.0
+        
+        words = text.split()
+        avg_sentence_length = len(words) / len(sentences)
+        avg_word_length = sum(len(word) for word in words) / len(words) if words else 0
+        
+        # Simple readability score (lower is more readable)
+        score = (avg_sentence_length * 1.015) + (avg_word_length * 84.6) - 206.835
+        return max(0, min(100, score))  # Normalize to 0-100
     
     def _extract_keywords(self, text: str, max_keywords: int = 10) -> List[str]:
         """Extract keywords from text"""
@@ -249,8 +444,18 @@ class FileProcessor:
         return [kw[0] for kw in sorted_keywords[:max_keywords]]
     
     def _generate_title(self, content: str, filename: str, chunk_index: int) -> str:
-        """Generate a title for the chunk"""
-        # Take first sentence or first 100 characters
+        """Generate a meaningful title for the chunk"""
+        # Try to extract a meaningful title from headers or first sentence
+        lines = content.split('\n')
+        
+        # Look for headers (short lines at the beginning)
+        for line in lines[:3]:
+            line = line.strip()
+            if line and len(line) < 100 and not line.endswith('.'):
+                # Likely a header
+                return line
+        
+        # Fall back to first sentence
         first_sentence = content.split('.')[0].strip()
         if len(first_sentence) > 100:
             title = first_sentence[:97] + "..."

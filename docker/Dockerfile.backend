@@ -1,0 +1,85 @@
+# Backend Dockerfile (Node.js + Python + ChromaDB)
+FROM node:18-slim as node-base
+
+# Install Python and system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy Node.js backend
+COPY chat-widget/back-end/package*.json ./nodejs/
+WORKDIR /app/nodejs
+RUN npm ci --only=production
+
+COPY chat-widget/back-end/server.js ./
+
+# Setup Python environment
+WORKDIR /app
+RUN python3 -m venv venv
+ENV PATH="/app/venv/bin:$PATH"
+
+# Copy Python requirements first for better caching
+COPY Implementation/requirements.txt ./python/
+RUN pip install --no-cache-dir -r python/requirements.txt
+
+# Copy Python application
+COPY Implementation/ ./python/
+
+# Create necessary directories
+RUN mkdir -p /app/python/data/chromadb /app/python/data/uploads
+
+# Set environment variables
+ENV PYTHONPATH=/app/python
+ENV NODE_ENV=production
+ENV PYTHONUNBUFFERED=1
+
+# Expose ports
+EXPOSE 3000 8000 8001
+
+# NEW startup script - USE THIS:
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Start Python FastAPI (main chatbot) in background\n\
+cd /app/python\n\
+python api/app.py &\n\
+PYTHON_PID=$!\n\
+\n\
+# Start Admin API in background\n\
+cd /app/python/admin\n\
+python admin_api.py &\n\
+ADMIN_PID=$!\n\
+\n\
+# Wait a moment for Python services to start\n\
+sleep 5\n\
+\n\
+# Start Node.js server\n\
+cd /app/nodejs\n\
+node server.js &\n\
+NODE_PID=$!\n\
+\n\
+# Function to handle shutdown\n\
+cleanup() {\n\
+    echo "Shutting down services..."\n\
+    kill $PYTHON_PID $ADMIN_PID $NODE_PID 2>/dev/null || true\n\
+    wait\n\
+}\n\
+\n\
+# Set up signal handlers\n\
+trap cleanup SIGTERM SIGINT\n\
+\n\
+# Wait for processes\n\
+wait' > /app/start.sh
+
+RUN chmod +x /app/start.sh
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3000/health && curl -f http://localhost:8000/health && curl -f http://localhost:8001/health || exit 1
+CMD ["/app/start.sh"]

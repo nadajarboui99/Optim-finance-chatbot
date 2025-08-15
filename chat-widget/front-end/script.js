@@ -11,7 +11,9 @@ class ChatbotWidget {
         
         // State
         this.isLoading = false;
-        this.apiUrl = "http://localhost:3000/chat";
+        // 🔄 CHANGED: Dynamic API URL configuration for different environments
+        this.apiUrl = this.getApiUrl();
+        this.healthUrl = this.getHealthUrl();
         this.isOpen = false;
         this.debugMode = false; // Disabled by default for performance
         
@@ -32,11 +34,38 @@ class ChatbotWidget {
     }
 
     /**
-     * Preconnect to backend to reduce first request latency
+     * 🔄 NEW: Get API URL based on environment
+     */
+    getApiUrl() {
+        const isDevelopment = window.location.hostname === 'localhost' || 
+                            window.location.hostname === '127.0.0.1' ||
+                            window.location.hostname === '';
+
+        if (isDevelopment) {
+            return "http://localhost:8000/query";  // ✅ CORRECT - FastAPI endpoint
+        } else {
+            return "/api/query";  // ✅ CORRECT - will be proxied to FastAPI
+        }
+    }
+
+    getHealthUrl() {
+        const isDevelopment = window.location.hostname === 'localhost' || 
+                            window.location.hostname === '127.0.0.1' ||
+                            window.location.hostname === '';
+
+        if (isDevelopment) {
+            return "http://localhost:8000/health";  // ✅ CORRECT
+        } else {
+            return "/api/health";
+        }
+    }
+
+    /**
+     * 🔄 UPDATED: Preconnect with dynamic URL
      */
     async preconnect() {
         try {
-            await fetch(`http://localhost:3000/health`, {
+            await fetch(this.healthUrl, {
                 method: 'GET',
                 cache: 'no-cache'
             });
@@ -98,6 +127,8 @@ class ChatbotWidget {
 
     initializeChat() {
         this.log('Chatbot widget initialized');
+        this.log(`API URL: ${this.apiUrl}`);
+        this.log(`Health URL: ${this.healthUrl}`);
     }
 
     toggleChat() {
@@ -187,7 +218,7 @@ class ChatbotWidget {
     }
 
     /**
-     * Optimized server communication
+     * 🔄 UPDATED: Server communication with better error handling for containers
      */
     async sendMessageToServer(message, requestId) {
         const controller = new AbortController();
@@ -201,8 +232,9 @@ class ChatbotWidget {
                     "Accept": "application/json"
                 },
                 body: JSON.stringify({ 
-                    message,
-                    clientRequestId: requestId
+                    query: message,             // ✅ CORRECT - matches FastAPI QueryRequest model
+                    search_type: "hybrid",      // ✅ CORRECT - optional but good to include
+                    top_k: 5                    // ✅ CORRECT - optional but good to include
                 }),
                 signal: controller.signal,
                 // Performance optimizations
@@ -213,10 +245,13 @@ class ChatbotWidget {
             clearTimeout(timeoutId);
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // 🔄 IMPROVED: Better error handling for different HTTP status codes
+                const errorText = await response.text().catch(() => 'Unknown error');
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
 
-            return await response.json();
+            const data = await response.json();
+            return data;
 
         } catch (error) {
             clearTimeout(timeoutId);
@@ -225,22 +260,31 @@ class ChatbotWidget {
                 throw new Error('REQUEST_TIMEOUT');
             }
             
+            // 🔄 IMPROVED: Better network error detection
+            if (error.name === 'TypeError' || error.message.includes('fetch')) {
+                throw new Error('NETWORK_ERROR');
+            }
+            
             throw error;
         }
     }
 
     /**
-     * Optimized error handling
+     * 🔄 IMPROVED: Better error handling for containerized environment
      */
     handleError(error) {
         let errorMessage = "Je ne peux pas répondre pour le moment. ";
         
         if (error.message === 'REQUEST_TIMEOUT') {
             errorMessage += "La requête a pris trop de temps.";
-        } else if (error.name === "TypeError" && error.message.includes("fetch")) {
-            errorMessage += "Vérifiez que le serveur est démarré.";
+        } else if (error.message === 'NETWORK_ERROR') {
+            errorMessage += "Problème de connexion. Vérifiez que les services sont démarrés.";
+        } else if (error.message.includes("HTTP 502") || error.message.includes("HTTP 503")) {
+            errorMessage += "Service temporairement indisponible.";
+        } else if (error.message.includes("HTTP 404")) {
+            errorMessage += "Service introuvable.";
         } else if (error.message.includes("Failed to fetch")) {
-            errorMessage += "Problème de connexion réseau.";
+            errorMessage += "Impossible de contacter le serveur.";
         } else {
             errorMessage += "Veuillez réessayer.";
         }
@@ -388,13 +432,23 @@ class ChatbotWidget {
             isOpen: this.isOpen,
             isLoading: this.isLoading,
             messagesCount: this.chatMessages.children.length,
-            requestCount: this.requestCount
+            requestCount: this.requestCount,
+            apiUrl: this.apiUrl,
+            healthUrl: this.healthUrl
         };
     }
 
     toggleDebugMode() {
         this.debugMode = !this.debugMode;
         console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
+        if (this.debugMode) {
+            console.log('Current configuration:', {
+                apiUrl: this.apiUrl,
+                healthUrl: this.healthUrl,
+                hostname: window.location.hostname,
+                origin: window.location.origin
+            });
+        }
     }
 }
 
