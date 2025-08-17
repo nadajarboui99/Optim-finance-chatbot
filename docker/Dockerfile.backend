@@ -15,8 +15,9 @@ RUN python3 -m venv venv
 ENV PATH="/app/venv/bin:$PATH"
 
 # Copy Python requirements first for better caching
-COPY Implementation/requirements.txt ./python/
-RUN pip install --no-cache-dir -r python/requirements.txt
+COPY Implementation/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
 
 # Copy Python application
 COPY Implementation/ ./python/
