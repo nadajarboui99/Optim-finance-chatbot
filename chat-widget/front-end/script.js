@@ -37,41 +37,27 @@ class ChatbotWidget {
      * 🔄 NEW: Get API URL based on environment
      */
     getApiUrl() {
-        const isDevelopment = window.location.hostname === 'localhost' || 
-                            window.location.hostname === '127.0.0.1' ||
-                            window.location.hostname === '';
-
-        if (isDevelopment) {
-            return "http://localhost:8000/query";  // ✅ CORRECT - FastAPI endpoint
-        } else {
-            return "/api/query";  // ✅ CORRECT - will be proxied to FastAPI
-        }
-    }
+    console.log('🔍 Current hostname:', window.location.hostname);
+    console.log('🔍 Current port:', window.location.port);
+    return "/api/query";  // ✅ TOUJOURS utiliser le proxy Nginx
+}
 
     getHealthUrl() {
-        const isDevelopment = window.location.hostname === 'localhost' || 
-                            window.location.hostname === '127.0.0.1' ||
-                            window.location.hostname === '';
-
-        if (isDevelopment) {
-            return "http://localhost:8000/health";  // ✅ CORRECT
-        } else {
-            return "/api/health";
-        }
+        return "/api/health"; // ✅ TOUJOURS utiliser le proxy Nginx
     }
 
-    /**
-     * 🔄 UPDATED: Preconnect with dynamic URL
-     */
-    async preconnect() {
-        try {
-            await fetch(this.healthUrl, {
-                method: 'GET',
-                cache: 'no-cache'
-            });
-            this.log('Backend preconnection successful');
-        } catch (error) {
-            this.log('Backend preconnection failed:', error.message);
+        /**
+         * 🔄 UPDATED: Preconnect with dynamic URL
+         */
+        async preconnect() {
+            try {
+                await fetch(this.healthUrl, {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+                this.log('Backend preconnection successful');
+            } catch (error) {
+                this.log('Backend preconnection failed:', error.message);
         }
     }
 
