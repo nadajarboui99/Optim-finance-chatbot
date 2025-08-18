@@ -1,21 +1,23 @@
+# chromadb_manager.py - VERSION OPTIMISÉE
 import chromadb
 import uuid
 import json
 import os
 import shutil
 from typing import List, Dict, Any, Optional
-from sentence_transformers import SentenceTransformer
 import numpy as np
 from config import Config
+from model_manager import ModelManager
 
 class ChromaDBManager:
     def __init__(self):
-        self.model = SentenceTransformer(Config.EMBEDDING_MODEL)
+        # Utiliser le modèle partagé via ModelManager
+        model_manager = ModelManager()
+        self.model = model_manager.get_model()
         
         # Initialize ChromaDB client with error handling
         try:
             self.client = chromadb.PersistentClient(path=Config.CHROMADB_PATH)
-            # Try to get or create collection
             self._initialize_collection()
         except Exception as e:
             print(f"Error initializing ChromaDB: {e}")
@@ -26,25 +28,20 @@ class ChromaDBManager:
         """Initialize the collection"""
         self.collection = self.client.get_or_create_collection(
             name=Config.CHROMADB_COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"}  # Use cosine similarity
+            metadata={"hnsw:space": "cosine"}
         )
     
     def _recover_database(self):
         """Recover from corrupted database by clearing and recreating"""
         try:
-            # Close any existing client connections
             if hasattr(self, 'client'):
                 del self.client
             
-            # Remove the corrupted database directory
             if os.path.exists(Config.CHROMADB_PATH):
                 print(f"Removing corrupted database at: {Config.CHROMADB_PATH}")
                 shutil.rmtree(Config.CHROMADB_PATH)
             
-            # Recreate the directory
             os.makedirs(Config.CHROMADB_PATH, exist_ok=True)
-            
-            # Initialize new client and collection
             self.client = chromadb.PersistentClient(path=Config.CHROMADB_PATH)
             self._initialize_collection()
             print("✓ ChromaDB recovered successfully")
@@ -61,23 +58,32 @@ class ChromaDBManager:
             ids = []
             embeddings = []
             
-            for chunk in chunks:
-                # Generate embedding for the text
-                text = f"{chunk['title']}: {chunk['content']}"
-                embedding = self.model.encode([text])[0].tolist()
+            # Traiter par batch pour économiser la mémoire
+            batch_size = 10
+            for i in range(0, len(chunks), batch_size):
+                batch = chunks[i:i + batch_size]
+                texts = [f"{chunk['title']}: {chunk['content']}" for chunk in batch]
                 
-                documents.append(chunk['content'])
-                metadatas.append({
-                    'title': chunk['title'],
-                    'category': chunk['category'],
-                    'keywords': json.dumps(chunk['keywords']),
-                    'intent': chunk['intent'],
-                    'filename': chunk.get('filename', ''),
-                    'file_type': chunk.get('file_type', ''),
-                    'chunk_index': chunk.get('chunk_index', 0)
-                })
-                ids.append(chunk['id'])
-                embeddings.append(embedding)
+                # Générer embeddings en batch (plus efficace)
+                if self.model:
+                    batch_embeddings = self.model.encode(texts).tolist()
+                else:
+                    # Fallback si pas de modèle (pour compatibilité)
+                    batch_embeddings = [[0.0] * 384 for _ in texts]
+                
+                for j, chunk in enumerate(batch):
+                    documents.append(chunk['content'])
+                    metadatas.append({
+                        'title': chunk['title'],
+                        'category': chunk['category'],
+                        'keywords': json.dumps(chunk['keywords']),
+                        'intent': chunk['intent'],
+                        'filename': chunk.get('filename', ''),
+                        'file_type': chunk.get('file_type', ''),
+                        'chunk_index': chunk.get('chunk_index', 0)
+                    })
+                    ids.append(chunk['id'])
+                    embeddings.append(batch_embeddings[j])
             
             # Add to collection
             self.collection.add(
@@ -97,6 +103,10 @@ class ChromaDBManager:
     def search_similar(self, query: str, top_k: int = 5, category_filter: Optional[str] = None) -> List[Dict[str, Any]]:
         """Search similar chunks in ChromaDB"""
         try:
+            if not self.model:
+                print("No embedding model available")
+                return []
+                
             # Generate query embedding
             query_embedding = self.model.encode([query])[0].tolist()
             
@@ -129,7 +139,7 @@ class ChromaDBManager:
                     'intent': metadata['intent'],
                     'filename': metadata.get('filename', ''),
                     'file_type': metadata.get('file_type', ''),
-                    'similarity_score': 1 - distance,  # Convert distance to similarity
+                    'similarity_score': 1 - distance,
                     'distance': distance
                 })
             
@@ -139,17 +149,16 @@ class ChromaDBManager:
             print(f"Error searching ChromaDB: {e}")
             return []
     
+    # ... (autres méthodes inchangées)
     def delete_chunks_by_filename(self, filename: str) -> bool:
         """Delete all chunks from a specific file"""
         try:
-            # Get all chunks from the file
             results = self.collection.get(
                 where={"filename": filename},
                 include=["metadatas"]
             )
             
             if results['ids']:
-                # Delete the chunks
                 self.collection.delete(ids=results['ids'])
                 print(f"Deleted {len(results['ids'])} chunks from file: {filename}")
                 return True
@@ -165,8 +174,6 @@ class ChromaDBManager:
         """Get statistics about the collection"""
         try:
             total_chunks = self.collection.count()
-            
-            # Get all metadata to analyze
             all_data = self.collection.get(include=["metadatas"])
             
             categories = set()
@@ -199,7 +206,6 @@ class ChromaDBManager:
     def clear_collection(self) -> bool:
         """Clear all data from the collection"""
         try:
-            # Delete the collection and recreate it
             self.client.delete_collection(Config.CHROMADB_COLLECTION_NAME)
             self.collection = self.client.get_or_create_collection(
                 name=Config.CHROMADB_COLLECTION_NAME,
@@ -209,14 +215,4 @@ class ChromaDBManager:
             return True
         except Exception as e:
             print(f"Error clearing collection: {e}")
-            return False
-    
-    def force_reset_database(self) -> bool:
-        """Force reset the entire database - use with caution"""
-        try:
-            print("⚠️  Force resetting ChromaDB database...")
-            self._recover_database()
-            return True
-        except Exception as e:
-            print(f"Failed to force reset database: {e}")
             return False

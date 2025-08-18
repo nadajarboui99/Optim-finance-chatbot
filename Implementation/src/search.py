@@ -1,16 +1,25 @@
+# search.py - VERSION OPTIMISÉE
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import numpy as np
 from typing import List, Dict, Any, Optional
-from sentence_transformers import SentenceTransformer
 from config import Config
 from admin.chromadb_manager import ChromaDBManager
+from model_manager import ModelManager
 
 class SearchEngine:
     def __init__(self):
+        
+        # ChromaDBManager utilisera aussi le modèle partagé
         self.chromadb_manager = ChromaDBManager()
-        self.model = SentenceTransformer(Config.EMBEDDING_MODEL)
+        # Utiliser le ModelManager pour partager le modèle
+        model_manager = ModelManager()
+        self.model = model_manager.get_model()
+        print(f"✓ Using shared embedding model: {Config.EMBEDDING_MODEL}")
+        
+        
+        
         
         # Patterns pour classification d'intention
         self.intent_patterns = {
@@ -24,8 +33,7 @@ class SearchEngine:
     
     def initialize(self) -> None:
         """Initialiser le moteur de recherche"""
-        # ChromaDB doesn't need explicit initialization like FAISS
-        print("SearchEngine initialized with ChromaDB")
+        print("SearchEngine initialized with shared embedding model")
     
     def classify_intent(self, query: str) -> str:
         """Classifier l'intention de la requête"""
