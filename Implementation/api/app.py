@@ -136,9 +136,11 @@ async def get_suggestions(q: Optional[str] = ""):
     return {"suggestions": suggestions}
 
 if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", Config.API_PORT))
     uvicorn.run(
         "app:app",
-        host=Config.API_HOST,
-        port=Config.API_PORT,
-        reload=True
+        host="0.0.0.0",
+        port=port,
+        reload=False  # Set to False for production
     )

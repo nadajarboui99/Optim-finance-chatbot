@@ -1,78 +1,56 @@
-# Backend Dockerfile (Python + ChromaDB only)
+# Backend Dockerfile (Optimized for memory)
 FROM python:3.11-slim
 
-# Install system dependencies
+# Install minimal system dependencies and clean up
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Create app directory
+# Set working directory
 WORKDIR /app
 
-# Setup Python environment
-RUN python3 -m venv venv
-ENV PATH="/app/venv/bin:$PATH"
+# Set environment variables for optimization
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
-COPY Implementation/ ./python/
-# Install from the copied location  
-RUN pip install --no-cache-dir -r ./python/requirements.txt
+# Copy and install requirements first (for better caching)
+COPY Implementation/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /tmp/* /var/tmp/* ~/.cache/pip/*
 
-
-# Copy Python application
-COPY Implementation/ ./python/
+# Copy application code
+COPY Implementation/ ./
 
 # Create necessary directories
-RUN mkdir -p /app/python/data/chromadb /app/python/data/uploads
+RUN mkdir -p data/chromadb data/uploads
 
-# Set environment variables
-ENV PYTHONPATH=/app/python
-ENV PYTHONUNBUFFERED=1
-
-# Expose ports (only Python services)
-EXPOSE 8000 8001
-
-# Startup script - Only Python services
+# Create optimized startup script
 RUN echo '#!/bin/bash\n\
 set -e\n\
+echo "🚀 Starting OPTIM Finance Chatbot..."\n\
 \n\
-echo "🚀 Starting OPTIM Finance Chatbot (FastAPI only)..."\n\
+# Get port from environment (Render provides this)\n\
+PORT=${PORT:-8000}\n\
 \n\
-# Start Python FastAPI (main chatbot service)\n\
-cd /app/python\n\
-python api/app.py &\n\
-PYTHON_PID=$!\n\
-echo "✅ FastAPI server started on port 8000"\n\
+# Start FastAPI with proper port binding\n\
+exec python -c "\n\
+import uvicorn\n\
+import os\n\
+from api.app import app\n\
 \n\
-# Conditionally start Admin API (only if enabled)\n\
-if [ "${DEPLOY_ADMIN:-false}" = "true" ]; then\n\
-    cd /app/python/admin\n\
-    python admin_api.py &\n\
-    ADMIN_PID=$!\n\
-    echo "✅ Admin interface started on port 8001"\n\
-else\n\
-    echo "⏭️  Admin interface disabled for this deployment"\n\
-    ADMIN_PID=""\n\
-fi\n\
-\n\
-# Function to handle shutdown\n\
-cleanup() {\n\
-    echo "Shutting down services..."\n\
-    if [ ! -z "$PYTHON_PID" ]; then kill $PYTHON_PID 2>/dev/null || true; fi\n\
-    if [ ! -z "$ADMIN_PID" ]; then kill $ADMIN_PID 2>/dev/null || true; fi\n\
-    wait\n\
-}\n\
-\n\
-# Set up signal handlers\n\
-trap cleanup SIGTERM SIGINT\n\
-\n\
-# Wait for the main process (FastAPI)\n\
-wait $PYTHON_PID' > /app/start.sh
+port = int(os.environ.get(\"PORT\", 8000))\n\
+uvicorn.run(app, host=\"0.0.0.0\", port=port)\n\
+"' > /app/start.sh && chmod +x /app/start.sh
 
-RUN chmod +x /app/start.sh
+# Expose port
+EXPOSE 8000
 
-# Health check (only FastAPI)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 CMD ["/app/start.sh"]
