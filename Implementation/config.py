@@ -4,15 +4,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
+    # ========== PATH CONFIGURATION ==========
+    # Get the directory where this config.py file is located
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    
+    # Point to admin/data folder since that's where file uploads and ChromaDB should be
+    DATA_DIR = os.path.join(BASE_DIR, "admin", "data")
+    
     # Chemins des fichiers (existants)
-    DATA_DIR = "data"
     KNOWLEDGE_BASE_PATH = os.path.join(DATA_DIR, "knowledge_base.json")
     FAISS_INDEX_PATH = os.path.join(DATA_DIR, "optim_finance_index.faiss")
     CHUNKS_METADATA_PATH = os.path.join(DATA_DIR, "chunks_metadata.pkl")
     
     # Configuration LLM (existante)
-    #OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-    #LLM_MODEL = os.getenv('LLM_MODEL', 'mistralai/mistral-7b-instruct:free')
     MISTRAL_API_KEY= os.getenv('MISTRAL_API_KEY','')
     LLM_MODEL = os.getenv('LLM_MODEL', 'mistral-small')
     
@@ -31,9 +35,7 @@ class Config:
     CONTACT_EMAIL = "contact@optim-finance.com"
     CONTACT_PHONE = "+33 1 59 06 80 86"
     
-    # ========== NOUVELLES CONFIGURATIONS CHROMADB ==========
-    
-    # ChromaDB Configuration
+    # ========== CHROMADB CONFIGURATION ==========
     CHROMADB_PATH = os.path.join(DATA_DIR, "chromadb")
     CHROMADB_COLLECTION_NAME = os.getenv("CHROMADB_COLLECTION_NAME", "optim_finance_knowledge")
     
@@ -74,13 +76,19 @@ class Config:
         for directory in directories:
             os.makedirs(directory, exist_ok=True)
         
-        print(f"Dossiers initialisés: {', '.join(directories)}")
+        print(f"📁 Dossiers initialisés dans: {os.path.abspath(cls.DATA_DIR)}")
+        print(f"   ├── chromadb/")
+        print(f"   ├── uploads/")
+        print(f"   └── logs/")
     
     # ========== VALIDATION DE LA CONFIGURATION ==========
     @classmethod
     def validate_config(cls):
         """Valider la configuration"""
         errors = []
+        
+        print(f"🔍 Validation de la configuration...")
+        print(f"📍 DATA_DIR utilisé: {os.path.abspath(cls.DATA_DIR)}")
         
         # Vérifier les clés API
         if cls.USE_CHROMADB and not cls.MISTRAL_API_KEY:
@@ -110,9 +118,9 @@ class Config:
             errors.append("API_PORT et ADMIN_API_PORT doivent être différents")
         
         if errors:
-            raise ValueError(f"Erreurs de configuration: {'; '.join(errors)}")
+            raise ValueError(f"❌ Erreurs de configuration: {'; '.join(errors)}")
         
-        print("Configuration validée avec succès")
+        print("✅ Configuration validée avec succès")
     
     # ========== MÉTHODES UTILITAIRES ==========
     @classmethod
@@ -130,9 +138,54 @@ class Config:
     def get_upload_path(cls, filename):
         """Générer le chemin complet pour un fichier uploadé"""
         return os.path.join(cls.ADMIN_UPLOAD_FOLDER, filename)
+    
+    @classmethod
+    def print_config_summary(cls):
+        """Afficher un résumé de la configuration"""
+        print("\n" + "="*50)
+        print("🔧 CONFIGURATION SUMMARY")
+        print("="*50)
+        print(f"📂 Base Directory: {cls.BASE_DIR}")
+        print(f"📊 Data Directory: {os.path.abspath(cls.DATA_DIR)}")
+        print(f"🗃️  ChromaDB Path: {os.path.abspath(cls.CHROMADB_PATH)}")
+        print(f"📤 Upload Folder: {os.path.abspath(cls.ADMIN_UPLOAD_FOLDER)}")
+        print(f"📝 Log File: {os.path.abspath(cls.LOG_FILE)}")
+        print(f"🌐 Admin API: http://{cls.ADMIN_API_HOST}:{cls.ADMIN_API_PORT}")
+        print(f"🤖 Chat API: http://{cls.API_HOST}:{cls.API_PORT}")
+        print(f"📁 Max File Size: {cls.get_file_size_mb():.1f} MB")
+        print("="*50)
+    
+    @classmethod
+    def check_data_consistency(cls):
+        """Vérifier la cohérence des données"""
+        print("\n🔍 VÉRIFICATION DE COHÉRENCE")
+        print("-" * 30)
+        
+        paths_to_check = {
+            "Data Directory": cls.DATA_DIR,
+            "ChromaDB Path": cls.CHROMADB_PATH,
+            "Upload Folder": cls.ADMIN_UPLOAD_FOLDER
+        }
+        
+        all_good = True
+        for name, path in paths_to_check.items():
+            exists = os.path.exists(path)
+            print(f"{'✅' if exists else '❌'} {name}: {path}")
+            if not exists:
+                all_good = False
+        
+        if all_good:
+            print("✅ Tous les dossiers sont correctement configurés!")
+        else:
+            print("⚠️  Certains dossiers manquent. Exécutez Config.initialize_directories()")
+        
+        return all_good
 
 # Initialisation automatique au chargement du module
 Config.initialize_directories()
+
+# Afficher le résumé de configuration
+Config.print_config_summary()
 
 # Validation optionnelle (décommenter si nécessaire)
 # Config.validate_config()

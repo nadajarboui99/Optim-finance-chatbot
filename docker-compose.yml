@@ -13,14 +13,14 @@ services:
       - CHROMADB_PATH=/app/python/data/chromadb
       - USE_CHROMADB=true
       - ANONYMIZED_TELEMETRY=false
-      - DEPLOY_ADMIN=true      # ✅ Keep admin interface
+      - DEPLOY_ADMIN=true      
     volumes:
       - chromadb_data:/app/python/data/chromadb
       - uploads_data:/app/python/data/uploads
       - ./Implementation:/app/python
     ports:
-      - "8000:8000"  # ✅ FastAPI
-      - "8001:8001"  # ✅ Admin interface
+      - "8000:8000"  
+      - "8001:8001"  
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
