@@ -4,7 +4,7 @@ An intelligent document-based chatbot system developed for OPTIM Finance, a star
 
 ## About the Project
 
-This chatbot was developed during an internship at OPTIM Finance to improve client support and information accessibility. The system allows the company to upload their internal documents, policies, and FAQs, then provides intelligent responses to client inquiries based on this knowledge base.
+This chatbot was developed during an internship at StartNow to improve client support and information accessibility. The system allows the company to upload their internal documents, policies, and FAQs, then provides intelligent responses to client inquiries based on this knowledge base.
 
 ### Key Features
 
@@ -264,14 +264,8 @@ OPTIM Finance is a financial technology startup that provides comprehensive fina
 
 ## License
 
-This project was developed as part of an internship at OPTIM Finance. Please contact the company for licensing information.
-
-## Contact
-
-For questions about this implementation:
-- **OPTIM Finance**: contact@optim-finance.com
-- **Phone**: +33 1 59 06 80 86
+This project was developed as part of an internship at StartNow. Please contact the company for licensing information.
 
 ---
 
-*This project was developed during a software engineering internship at OPTIM Finance, focusing on implementing modern AI solutions for customer support automation.*
+*This project was developed during a software engineering internship at StartNow, focusing on implementing modern AI solutions for customer support automation.*
