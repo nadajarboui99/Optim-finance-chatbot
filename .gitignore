@@ -43,9 +43,12 @@ dist/
 pip-log.txt
 pip-delete-this-directory.txt
 
+Implementation/data
 
+# === Node.js ===
 
-
+# Node modules
+node_modules/
 
 # Build outputs
 dist/
