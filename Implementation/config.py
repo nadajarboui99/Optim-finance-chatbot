@@ -21,7 +21,7 @@ class Config:
     LLM_MODEL = os.getenv('LLM_MODEL', 'mistral-small')
     
     # Configuration Embedding (existante)
-    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-MiniLM-L3-v2")
     
     # Configuration Recherche (existante)
     TOP_K_RESULTS = int(os.getenv("TOP_K_RESULTS", 3))
