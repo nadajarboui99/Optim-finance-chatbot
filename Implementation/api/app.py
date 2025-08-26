@@ -7,7 +7,7 @@ import sys
 import os
 import threading
 import time
-
+from admin_api import app as admin_app
 # Ajouter le dossier src au path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 from chatbot import OptimFinanceChatbot
@@ -45,7 +45,7 @@ app.add_middleware(
 
 # Initialiser le chatbot
 chatbot = OptimFinanceChatbot()
-
+app.mount("/admin", admin_app)
 
 
 @app.on_event("startup")
