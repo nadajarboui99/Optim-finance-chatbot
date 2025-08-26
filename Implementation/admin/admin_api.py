@@ -15,13 +15,10 @@ import shutil
 from pathlib import Path
 import json
 
-# Add project directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from config import Config
-from file_processor import FileProcessor
-from chromadb_manager import ChromaDBManager
+from admin.file_processor import FileProcessor
+from admin.chromadb_manager import ChromaDBManager
 
 # Pydantic models
 class FileUploadResponse(BaseModel):
