@@ -63,8 +63,8 @@ This chatbot was developed during an internship at StartNow to improve client su
 
 4. **Access the services**
    - **Chat Widget**: http://localhost (Main interface)
-   - **Admin Panel**: http://localhost:8001 (Document management)
-   - **API Documentation**: http://localhost:8000/docs (FastAPI docs)
+   - **Admin Panel**: http://0.0.0.0:8001 (Document management)
+   
 
 ### Option 2: Local Development
 
