@@ -11,7 +11,7 @@ class ChatbotWidget {
         
         // State
         this.isLoading = false;
-        // 🔄 CHANGED: Dynamic API URL configuration for different environments
+        //  UPDATED: Use deployed backend URL
         this.apiUrl = this.getApiUrl();
         this.healthUrl = this.getHealthUrl();
         this.isOpen = false;
@@ -34,30 +34,64 @@ class ChatbotWidget {
     }
 
     /**
-     * 🔄 NEW: Get API URL based on environment
+     *  UPDATED: Get API URL based on environment (local vs production)
      */
     getApiUrl() {
-    console.log('🔍 Current hostname:', window.location.hostname);
-    console.log('🔍 Current port:', window.location.port);
-    return "/api/query";  // ✅ TOUJOURS utiliser le proxy Nginx
-}
-
-    getHealthUrl() {
-        return "/api/health"; // ✅ TOUJOURS utiliser le proxy Nginx
+        console.log('🔍 Current hostname:', window.location.hostname);
+        console.log('🔍 Current port:', window.location.port);
+        
+        // Check if running locally (for development)
+        const isLocal = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' ||
+                       window.location.hostname.includes('192.168.') ||
+                       window.location.port;
+        
+        if (isLocal) {
+            // Use local proxy when developing locally
+            return "/api/query";
+        } else {
+            // Use deployed backend when on Vercel
+            return "https://optim-finance-chatbot-1.onrender.com/query";
+        }
     }
 
-        /**
-         * 🔄 UPDATED: Preconnect with dynamic URL
-         */
-        async preconnect() {
-            try {
-                await fetch(this.healthUrl, {
-                    method: 'GET',
-                    cache: 'no-cache'
-                });
-                this.log('Backend preconnection successful');
-            } catch (error) {
-                this.log('Backend preconnection failed:', error.message);
+    getHealthUrl() {
+        // Check if running locally (for development)
+        const isLocal = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' ||
+                       window.location.hostname.includes('192.168.') ||
+                       window.location.port;
+        
+        if (isLocal) {
+            return "/api/health";
+        } else {
+            return "https://optim-finance-chatbot-1.onrender.com/health";
+        }
+    }
+
+    /**
+     *  UPDATED: Preconnect with dynamic URL and better error handling
+     */
+    async preconnect() {
+        try {
+            const response = await fetch(this.healthUrl, {
+                method: 'GET',
+                cache: 'no-cache',
+                mode: 'cors', // Important for cross-origin requests
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.log('Backend preconnection successful', data);
+            } else {
+                this.log('Backend preconnection failed with status:', response.status);
+            }
+        } catch (error) {
+            this.log('Backend preconnection failed:', error.message);
+            // Don't throw error here, just log it - the widget should still work
         }
     }
 
@@ -204,50 +238,65 @@ class ChatbotWidget {
     }
 
     /**
-     * 🔄 UPDATED: Server communication with better error handling for containers
+     * 🔄 UPDATED: Server communication optimized for cross-origin requests
      */
     async sendMessageToServer(message, requestId) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for remote server
 
         try {
+            const requestBody = { 
+                query: message,             
+                search_type: "hybrid",      
+                top_k: 5                    
+            };
+
+            this.log('Sending request to:', this.apiUrl);
+            this.log('Request body:', requestBody);
+
             const response = await fetch(this.apiUrl, {
                 method: "POST",
                 headers: { 
                     "Content-Type": "application/json",
                     "Accept": "application/json"
                 },
-                body: JSON.stringify({ 
-                    query: message,             // ✅ CORRECT - matches FastAPI QueryRequest model
-                    search_type: "hybrid",      // ✅ CORRECT - optional but good to include
-                    top_k: 5                    // ✅ CORRECT - optional but good to include
-                }),
+                body: JSON.stringify(requestBody),
                 signal: controller.signal,
-                // Performance optimizations
-                cache: 'no-cache',
-                keepalive: false
+                mode: 'cors', // Important for cross-origin requests
+                cache: 'no-cache'
             });
 
             clearTimeout(timeoutId);
 
+            this.log('Response status:', response.status);
+            this.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
             if (!response.ok) {
-                // 🔄 IMPROVED: Better error handling for different HTTP status codes
-                const errorText = await response.text().catch(() => 'Unknown error');
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    this.log('Error response body:', errorText);
+                } catch (e) {
+                    errorText = `HTTP ${response.status}`;
+                }
                 throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
 
             const data = await response.json();
+            this.log('Response data:', data);
             return data;
 
         } catch (error) {
             clearTimeout(timeoutId);
+            this.log('Request error:', error);
             
             if (error.name === 'AbortError') {
                 throw new Error('REQUEST_TIMEOUT');
             }
             
-            // 🔄 IMPROVED: Better network error detection
-            if (error.name === 'TypeError' || error.message.includes('fetch')) {
+            // Better network error detection for cross-origin requests
+            if (error.name === 'TypeError' || error.message.includes('fetch') || 
+                error.message.includes('CORS') || error.message.includes('network')) {
                 throw new Error('NETWORK_ERROR');
             }
             
@@ -256,21 +305,23 @@ class ChatbotWidget {
     }
 
     /**
-     * 🔄 IMPROVED: Better error handling for containerized environment
+     * 🔄 IMPROVED: Better error handling for deployed environment
      */
     handleError(error) {
         let errorMessage = "Je ne peux pas répondre pour le moment. ";
         
         if (error.message === 'REQUEST_TIMEOUT') {
-            errorMessage += "La requête a pris trop de temps.";
+            errorMessage += "La requête a pris trop de temps. Le serveur peut être en cours de réveil.";
         } else if (error.message === 'NETWORK_ERROR') {
-            errorMessage += "Problème de connexion. Vérifiez que les services sont démarrés.";
+            errorMessage += "Problème de connexion réseau.";
         } else if (error.message.includes("HTTP 502") || error.message.includes("HTTP 503")) {
-            errorMessage += "Service temporairement indisponible.";
+            errorMessage += "Service temporairement indisponible. Veuillez réessayer dans quelques instants.";
         } else if (error.message.includes("HTTP 404")) {
             errorMessage += "Service introuvable.";
-        } else if (error.message.includes("Failed to fetch")) {
-            errorMessage += "Impossible de contacter le serveur.";
+        } else if (error.message.includes("Failed to fetch") || error.message.includes("CORS")) {
+            errorMessage += "Impossible de contacter le serveur. Vérifiez votre connexion internet.";
+        } else if (error.message.includes("HTTP 429")) {
+            errorMessage += "Trop de requêtes. Veuillez attendre avant de réessayer.";
         } else {
             errorMessage += "Veuillez réessayer.";
         }
@@ -432,7 +483,11 @@ class ChatbotWidget {
                 apiUrl: this.apiUrl,
                 healthUrl: this.healthUrl,
                 hostname: window.location.hostname,
-                origin: window.location.origin
+                origin: window.location.origin,
+                isLocal: window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1' ||
+                        window.location.hostname.includes('192.168.') ||
+                        window.location.port
             });
         }
     }
@@ -440,7 +495,11 @@ class ChatbotWidget {
 
 // Optimized initialization
 document.addEventListener("DOMContentLoaded", () => {
-    console.log('🚀 Initializing OPTIM Finance Chatbot...');
+    console.log(' Initializing OPTIM Finance Chatbot...');
+    console.log(' Environment detection:');
+    console.log('  - Hostname:', window.location.hostname);
+    console.log('  - Origin:', window.location.origin);
+    console.log('  - Port:', window.location.port);
     
     // Create global instance
     window.chatbot = new ChatbotWidget();
@@ -455,7 +514,8 @@ document.addEventListener("DOMContentLoaded", () => {
         debug: () => window.chatbot.toggleDebugMode()
     };
     
-    console.log('✅ Chatbot ready! Use window.chatbotUtils for controls.');
+    console.log(' Chatbot ready! Use window.chatbotUtils for controls.');
+    console.log(' Backend URL:', window.chatbot.apiUrl);
 });
 
 // Optimized visibility handling
