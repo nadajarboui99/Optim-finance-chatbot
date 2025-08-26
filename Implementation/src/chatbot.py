@@ -64,7 +64,7 @@ class OptimFinanceChatbot:
                 top_k=top_k
             )
             
-            self._print(f"📊 Résultats de recherche:")
+            self._print(f" Résultats de recherche:")
             self._print(f"  - Nombre de résultats: {len(search_results['results'])}")
             self._print(f"  - Intention détectée: {search_results['intent']}")
             
@@ -230,15 +230,15 @@ def main():
         
         while True:
             try:
-                user_input = input("\n🤔 Votre question: ").strip()
+                user_input = input("\n Votre question: ").strip()
                 
                 if user_input.lower() in ['quit', 'exit', 'q']:
-                    print("👋 Au revoir !")
+                    print(" Au revoir !")
                     break
                 
                 if user_input.lower() == 'status':
                     status = chatbot.get_status()
-                    print(f"\n📊 Statut du système:")
+                    print(f"\n Statut du système:")
                     for key, value in status.items():
                         emoji = "✅" if value else "❌"
                         print(f"  {emoji} {key}: {value}")
@@ -246,7 +246,7 @@ def main():
                 
                 if user_input.lower() == 'help':
                     suggestions = chatbot.get_suggestions("")
-                    print(f"\n💡 Suggestions de questions:")
+                    print(f"\n Suggestions de questions:")
                     for i, suggestion in enumerate(suggestions, 1):
                         print(f"  {i}. {suggestion}")
                     continue
