@@ -11,11 +11,6 @@ class Config:
     # Point to admin/data folder since that's where file uploads and ChromaDB should be
     DATA_DIR = os.path.join(BASE_DIR, "admin", "data")
     
-    # Chemins des fichiers (existants)
-    KNOWLEDGE_BASE_PATH = os.path.join(DATA_DIR, "knowledge_base.json")
-    FAISS_INDEX_PATH = os.path.join(DATA_DIR, "optim_finance_index.faiss")
-    CHUNKS_METADATA_PATH = os.path.join(DATA_DIR, "chunks_metadata.pkl")
-    
     # Configuration LLM (existante)
     MISTRAL_API_KEY= os.getenv('MISTRAL_API_KEY','')
     LLM_MODEL = os.getenv('LLM_MODEL', 'mistral-small')
