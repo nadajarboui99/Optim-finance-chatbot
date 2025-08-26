@@ -8,6 +8,11 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 from config import Config
 from model_manager import ModelManager
+import sys
+# Add project directories to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
 
 class ChromaDBManager:
     def __init__(self):

@@ -7,6 +7,10 @@ from typing import List, Dict, Any, Optional
 import re
 from pathlib import Path
 import csv
+import sys
+# Add project directories to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 class FileProcessor:
     def __init__(self):
