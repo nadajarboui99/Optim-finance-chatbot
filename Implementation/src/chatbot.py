@@ -215,7 +215,7 @@ class OptimFinanceChatbot:
 # Interface CLI pour tester
 def main():
     try:
-        print("🚀 Démarrage du chatbot OPTIM Finance...")
+        print(" Démarrage du chatbot OPTIM Finance...")
         chatbot = OptimFinanceChatbot(silent_mode=False)  # Mode verbose pour CLI
         
         print("⚡ Initialisation en cours...")

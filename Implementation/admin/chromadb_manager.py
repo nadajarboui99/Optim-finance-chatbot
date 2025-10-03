@@ -1,4 +1,3 @@
-# chromadb_manager.py - VERSION OPTIMISÉE
 import chromadb
 import uuid
 import json
