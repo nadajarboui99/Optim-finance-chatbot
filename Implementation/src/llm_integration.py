@@ -91,6 +91,8 @@ INSTRUCTIONS :
 - Sois concis mais complet (maximum 300 mots)
 - Utilise un ton commercial professionnel mais pas agressif
 - Si l'information n'est pas dans le contexte, dis-le clairement et propose de contacter l'équipe
+- Réponds UNIQUEMENT à la question posée
+- Donne EXACTEMENT l'information nécessaire (ni plus, ni moins)
 
 RÉPONSE :"""
             
