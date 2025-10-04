@@ -5,35 +5,28 @@ load_dotenv()
 
 class Config:
     # ========== PATH CONFIGURATION ==========
+    # Get the directory where this config.py file is located
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     
-    #  CORRECTION : Utiliser une variable d'environnement pour la persistance
-    # En production (Docker), monter un volume persistant
-    # En local, utiliser un dossier local
-    DATA_DIR = os.getenv("DATA_DIR", os.path.join(BASE_DIR, "admin", "data"))
+    # Point to admin/data folder since that's where file uploads and ChromaDB should be
+    DATA_DIR = os.path.join(BASE_DIR, "admin", "data")
     
-    # Configuration LLM
-    MISTRAL_API_KEY = os.getenv('MISTRAL_API_KEY', '')
+    # Configuration LLM (existante)
+    MISTRAL_API_KEY= os.getenv('MISTRAL_API_KEY','')
     LLM_MODEL = os.getenv('LLM_MODEL', 'mistral-small')
     
-    # Configuration Embedding
+    # Configuration Embedding (existante)
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-MiniLM-L3-v2")
     
-    # ========== RÉPONSES CONCISES ==========
-    #  NOUVEAU : Paramètres pour contrôler la longueur des réponses
-    MAX_RESPONSE_TOKENS = int(os.getenv("MAX_RESPONSE_TOKENS", 250))  # Limite stricte
-    MIN_RESPONSE_TOKENS = int(os.getenv("MIN_RESPONSE_TOKENS", 50))   # Minimum acceptable
-    TEMPERATURE = float(os.getenv("TEMPERATURE", 0.3))  # Plus bas = plus déterministe
-    
-    # Configuration Recherche
+    # Configuration Recherche (existante)
     TOP_K_RESULTS = int(os.getenv("TOP_K_RESULTS", 3))
     SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", 0.7))
     
-    # Configuration API
+    # Configuration API (existante)
     API_HOST = os.getenv("API_HOST", "0.0.0.0")
     API_PORT = int(os.getenv("API_PORT", 8000))
     
-    # Informations de contact OPTIM Finance
+    # Informations de contact OPTIM Finance (existantes)
     CONTACT_EMAIL = "contact@optim-finance.com"
     CONTACT_PHONE = "+33 1 59 06 80 86"
     
@@ -45,22 +38,16 @@ class Config:
     ADMIN_API_HOST = os.getenv("ADMIN_API_HOST", "localhost")
     ADMIN_API_PORT = int(os.getenv("ADMIN_API_PORT", 8001))
     ADMIN_UPLOAD_FOLDER = os.path.join(DATA_DIR, "uploads")
-    MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", 50 * 1024 * 1024))  # 50MB
+    MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", 50 * 1024 * 1024))  # 50MB par défaut
     
-    # ==========  CHUNKING AUTOMATIQUE ==========
-    # Retirer les paramètres manuels et utiliser la détection automatique
-    CHUNK_CONFIGS = {
-        'faq': {'size': 300, 'overlap': 50},
-        'document': {'size': 1000, 'overlap': 200},
-        'technical': {'size': 1500, 'overlap': 300},
-        'short': {'size': 500, 'overlap': 100}
-    }
-    
+    # File Processing Configuration
+    DEFAULT_CHUNK_SIZE = int(os.getenv("DEFAULT_CHUNK_SIZE", 1000))
+    DEFAULT_OVERLAP = int(os.getenv("DEFAULT_OVERLAP", 100))
     SUPPORTED_FILE_TYPES = ['.pdf', '.docx', '.doc', '.txt', '.json', '.csv', '.md']
     
     # Database Configuration
     USE_CHROMADB = os.getenv("USE_CHROMADB", "True").lower() in ('true', '1', 'yes', 'on')
-    FALLBACK_TO_FAISS = os.getenv("FALLBACK_TO_FAISS", "False").lower() in ('true', '1', 'yes', 'on')
+    FALLBACK_TO_FAISS = os.getenv("FALLBACK_TO_FAISS", "True").lower() in ('true', '1', 'yes', 'on')
     
     # Advanced Configuration
     KEYWORD_EXTRACTION_MAX = int(os.getenv("KEYWORD_EXTRACTION_MAX", 10))
@@ -84,9 +71,9 @@ class Config:
         for directory in directories:
             os.makedirs(directory, exist_ok=True)
         
-        print(f" Dossiers initialisés dans: {os.path.abspath(cls.DATA_DIR)}")
-        print(f"   ├── chromadb/ → {os.path.abspath(cls.CHROMADB_PATH)}")
-        print(f"   ├── uploads/ → {os.path.abspath(cls.ADMIN_UPLOAD_FOLDER)}")
+        print(f"📁 Dossiers initialisés dans: {os.path.abspath(cls.DATA_DIR)}")
+        print(f"   ├── chromadb/")
+        print(f"   ├── uploads/")
         print(f"   └── logs/")
     
     # ========== VALIDATION DE LA CONFIGURATION ==========
@@ -95,15 +82,27 @@ class Config:
         """Valider la configuration"""
         errors = []
         
-        print(f" Validation de la configuration...")
-        print(f" DATA_DIR utilisé: {os.path.abspath(cls.DATA_DIR)}")
+        print(f"🔍 Validation de la configuration...")
+        print(f"📍 DATA_DIR utilisé: {os.path.abspath(cls.DATA_DIR)}")
         
+        # Vérifier les clés API
         if cls.USE_CHROMADB and not cls.MISTRAL_API_KEY:
             errors.append("MISTRAL_API_KEY est requis")
         
+        # Vérifier les tailles
         if cls.MAX_FILE_SIZE <= 0:
             errors.append("MAX_FILE_SIZE doit être positif")
         
+        if cls.DEFAULT_CHUNK_SIZE <= 0:
+            errors.append("DEFAULT_CHUNK_SIZE doit être positif")
+        
+        if cls.DEFAULT_OVERLAP < 0:
+            errors.append("DEFAULT_OVERLAP ne peut pas être négatif")
+        
+        if cls.DEFAULT_OVERLAP >= cls.DEFAULT_CHUNK_SIZE:
+            errors.append("DEFAULT_OVERLAP doit être inférieur à DEFAULT_CHUNK_SIZE")
+        
+        # Vérifier les ports
         if not (1024 <= cls.API_PORT <= 65535):
             errors.append("API_PORT doit être entre 1024 et 65535")
         
@@ -116,33 +115,9 @@ class Config:
         if errors:
             raise ValueError(f"❌ Erreurs de configuration: {'; '.join(errors)}")
         
-        print(" Configuration validée avec succès")
+        print("✅ Configuration validée avec succès")
     
     # ========== MÉTHODES UTILITAIRES ==========
-    @classmethod
-    def get_chunk_config(cls, content_type: str = 'document'):
-        """Obtenir la configuration de chunking selon le type"""
-        return cls.CHUNK_CONFIGS.get(content_type, cls.CHUNK_CONFIGS['document'])
-    
-    @classmethod
-    def detect_content_type(cls, text: str, filename: str = '') -> str:
-        """Détecter automatiquement le type de contenu"""
-        text_lower = text.lower()
-        
-        # FAQ si beaucoup de questions
-        if text.count('?') > len(text) / 200:
-            return 'faq'
-        
-        # Technique si code ou termes techniques
-        if any(marker in text for marker in ['```', 'def ', 'class ', 'function']):
-            return 'technical'
-        
-        # Court si moins de 1000 caractères
-        if len(text) < 1000:
-            return 'short'
-        
-        return 'document'
-    
     @classmethod
     def get_file_size_mb(cls):
         """Retourner la taille max des fichiers en MB"""
@@ -165,22 +140,20 @@ class Config:
         print("\n" + "="*50)
         print("🔧 CONFIGURATION SUMMARY")
         print("="*50)
-        print(f" Base Directory: {cls.BASE_DIR}")
-        print(f" Data Directory: {os.path.abspath(cls.DATA_DIR)}")
-        print(f"  ChromaDB Path: {os.path.abspath(cls.CHROMADB_PATH)}")
-        print(f" Upload Folder: {os.path.abspath(cls.ADMIN_UPLOAD_FOLDER)}")
-        print(f" Log File: {os.path.abspath(cls.LOG_FILE)}")
-        print(f" Admin API: http://{cls.ADMIN_API_HOST}:{cls.ADMIN_API_PORT}")
-        print(f" Chat API: http://{cls.API_HOST}:{cls.API_PORT}")
-        print(f" Max File Size: {cls.get_file_size_mb():.1f} MB")
-        print(f" Max Response Tokens: {cls.MAX_RESPONSE_TOKENS}")
-        print(f"  Temperature: {cls.TEMPERATURE}")
+        print(f"📂 Base Directory: {cls.BASE_DIR}")
+        print(f"📊 Data Directory: {os.path.abspath(cls.DATA_DIR)}")
+        print(f"🗃️  ChromaDB Path: {os.path.abspath(cls.CHROMADB_PATH)}")
+        print(f"📤 Upload Folder: {os.path.abspath(cls.ADMIN_UPLOAD_FOLDER)}")
+        print(f"📝 Log File: {os.path.abspath(cls.LOG_FILE)}")
+        print(f"🌐 Admin API: http://{cls.ADMIN_API_HOST}:{cls.ADMIN_API_PORT}")
+        print(f"🤖 Chat API: http://{cls.API_HOST}:{cls.API_PORT}")
+        print(f"📁 Max File Size: {cls.get_file_size_mb():.1f} MB")
         print("="*50)
     
     @classmethod
     def check_data_consistency(cls):
         """Vérifier la cohérence des données"""
-        print("\n VÉRIFICATION DE COHÉRENCE")
+        print("\n🔍 VÉRIFICATION DE COHÉRENCE")
         print("-" * 30)
         
         paths_to_check = {
@@ -192,19 +165,22 @@ class Config:
         all_good = True
         for name, path in paths_to_check.items():
             exists = os.path.exists(path)
-            is_writable = os.access(path, os.W_OK) if exists else False
-            print(f"{'✅' if exists and is_writable else '❌'} {name}: {path}")
-            if not exists or not is_writable:
+            print(f"{'✅' if exists else '❌'} {name}: {path}")
+            if not exists:
                 all_good = False
         
         if all_good:
-            print(" Tous les dossiers sont correctement configurés!")
+            print("✅ Tous les dossiers sont correctement configurés!")
         else:
-            print(" Certains dossiers manquent ou ne sont pas accessibles en écriture.")
-            print("   Exécutez Config.initialize_directories()")
+            print("⚠️  Certains dossiers manquent. Exécutez Config.initialize_directories()")
         
         return all_good
 
 # Initialisation automatique au chargement du module
 Config.initialize_directories()
+
+# Afficher le résumé de configuration
 Config.print_config_summary()
+
+# Validation optionnelle (décommenter si nécessaire)
+# Config.validate_config()
